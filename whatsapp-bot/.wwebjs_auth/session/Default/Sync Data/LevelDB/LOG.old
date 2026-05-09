@@ -1,0 +1,4 @@
+2026/05/09-23:59:32.350 9140 Creating DB E:\YZTA-Hackathon\whatsapp-bot\.wwebjs_auth\session\Default\Sync Data\LevelDB since it was missing.
+2026/05/09-23:59:32.366 9140 Reusing MANIFEST E:\YZTA-Hackathon\whatsapp-bot\.wwebjs_auth\session\Default\Sync Data\LevelDB/MANIFEST-000001
+2026/05/09-23:59:32.366 9140 Recovering log #3
+2026/05/09-23:59:32.366 9140 Reusing old log E:\YZTA-Hackathon\whatsapp-bot\.wwebjs_auth\session\Default\Sync Data\LevelDB/000003.log 
