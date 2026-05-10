@@ -144,9 +144,6 @@ export default function DashboardPage() {
                 <p className="text-sm">
                   Tedarikçi için <strong className="text-primary">Zeytinyağı</strong> yeniden sipariş e-postası taslağı oluşturuluyor...
                 </p>
-                <p className="text-xs font-semibold text-secondary mt-1 cursor-pointer hover:underline">
-                  Taslağı Görüntüle
-                </p>
               </div>
             </div>
           </div>
@@ -191,9 +188,6 @@ export default function DashboardPage() {
       <div className="bg-surface-container-lowest border border-outline-variant rounded-xl micro-shadow overflow-hidden animate-slide-up" style={{ animationDelay: "200ms" }}>
         <div className="px-4 py-3 border-b border-outline-variant flex justify-between items-center bg-surface-bright">
           <h3 className="font-headline font-semibold text-primary text-sm md:text-base">Son Aktiviteler</h3>
-          <button className="text-xs font-semibold tracking-wider uppercase text-secondary hover:underline">
-            Tümünü Gör
-          </button>
         </div>
 
         {activitiesState === "loading" ? (
@@ -292,9 +286,6 @@ function AIFeedItem({
         <p className="text-sm">{title}</p>
         <p className="text-xs text-on-surface-variant mt-1 font-semibold tracking-wider uppercase">{subtitle}</p>
       </div>
-      <button className="opacity-0 group-hover:opacity-100 px-3 py-1 bg-surface text-on-surface border border-outline rounded text-xs font-semibold transition-all duration-200 shrink-0 hover:bg-surface-container-high active:scale-95">
-        {action}
-      </button>
     </div>
   );
 }

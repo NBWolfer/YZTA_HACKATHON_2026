@@ -2,29 +2,12 @@
 
 import { useEffect, useState, useCallback } from "react";
 import { getDashboardSummary, type DashboardSummary } from "@/lib/api";
-
-interface AgentLog {
-  time: string;
-  agent: string;
-  color: string;
-  message: string;
-  detail?: string;
-  level?: "info" | "warn" | "error";
-}
-
-const INITIAL_LOGS: AgentLog[] = [
-  { time: "10:42:01.005", agent: "ORCHESTRATOR", color: "text-primary-fixed-dim", message: "System check OK. 4 agents registered." },
-  { time: "10:42:15.221", agent: "WORKFLOW", color: "text-inverse-primary", message: "Inbound webhook received from API_GW." },
-  { time: "10:42:15.225", agent: "CUSTOMER", color: "text-secondary-container", message: "Answering query for #104 via WhatsApp." },
-  { time: "10:42:16.100", agent: "ORDER", color: "text-surface-dim", message: "Fetching details for Order #104. Status: IN_TRANSIT (Yurtiçi)." },
-  { time: "10:42:17.550", agent: "CUSTOMER", color: "text-secondary-container", message: "Generating Turkish response. Dispatching to chat UI..." },
-];
+import { useAppContext, type AgentLog } from "@/lib/AppContext";
 
 export default function AgentsPage() {
+  const { systemUptime, logs } = useAppContext();
   const [summary, setSummary] = useState<DashboardSummary | null>(null);
   const [healthOk, setHealthOk] = useState<boolean | null>(null);
-  const [logs, setLogs] = useState<AgentLog[]>(INITIAL_LOGS);
-  const [systemUptime, setSystemUptime] = useState(0);
 
   // Check backend health
   const checkHealth = useCallback(async () => {
@@ -42,33 +25,7 @@ export default function AgentsPage() {
     getDashboardSummary().then(setSummary).catch(() => setSummary(null));
   }, [checkHealth]);
 
-  // Simulated uptime counter
-  useEffect(() => {
-    const t = setInterval(() => setSystemUptime((u) => u + 1), 1000);
-    return () => clearInterval(t);
-  }, []);
 
-  // Simulate live log entries
-  useEffect(() => {
-    const liveMessages: AgentLog[] = [
-      { time: "", agent: "INVENTORY", color: "text-[#ffb77d]", message: "Stock reconciliation pass complete. 3 items flagged.", level: "warn" },
-      { time: "", agent: "ORCHESTRATOR", color: "text-primary-fixed-dim", message: "Heartbeat OK. All agents responsive." },
-      { time: "", agent: "WORKFLOW", color: "text-inverse-primary", message: "Daily briefing scheduled for 08:00 UTC+3." },
-      { time: "", agent: "ORDER", color: "text-surface-dim", message: "Aras Kargo route optimization queued." },
-      { time: "", agent: "CUSTOMER", color: "text-secondary-container", message: "Idle. Waiting for inbound queries." },
-    ];
-
-    let idx = 0;
-    const interval = setInterval(() => {
-      if (idx >= liveMessages.length) { clearInterval(interval); return; }
-      const now = new Date();
-      const timeStr = `${now.getHours().toString().padStart(2, "0")}:${now.getMinutes().toString().padStart(2, "0")}:${now.getSeconds().toString().padStart(2, "0")}.${now.getMilliseconds().toString().padStart(3, "0")}`;
-      setLogs((prev) => [...prev, { ...liveMessages[idx], time: timeStr }]);
-      idx++;
-    }, 3000);
-
-    return () => clearInterval(interval);
-  }, []);
 
   const formatUptime = (s: number) => {
     const h = Math.floor(s / 3600);
@@ -178,12 +135,11 @@ export default function AgentsPage() {
         <div className="lg:col-span-4 bg-surface-container-lowest border border-outline-variant rounded-xl p-4 md:p-6 elevation-1 flex flex-col h-[300px] md:h-[400px] animate-slide-up" style={{ animationDelay: "100ms" }}>
           <div className="flex justify-between items-center mb-4">
             <h2 className="font-headline text-base md:text-lg font-semibold text-primary">Aktif Görevler</h2>
-            <span className="font-mono text-xs bg-surface-container-high px-2 py-1 rounded text-on-surface-variant">3 Çalışıyor</span>
+            <span className="font-mono text-xs bg-surface-container-high px-2 py-1 rounded text-on-surface-variant">2 Çalışıyor</span>
           </div>
           <div className="flex flex-col gap-4 overflow-y-auto">
             <TaskItem name="Stok Uzlaştırma" agent="Inventory" progress={85} icon="sync" />
             <TaskItem name="WhatsApp Sorgu #104" agent="Customer" progress={-1} icon="autorenew" />
-            <TaskItem name="Aras Kargo Rota Oluşturma" agent="Order" progress={0} icon="route" status="Sırada" />
           </div>
         </div>
       </div>
@@ -223,7 +179,7 @@ export default function AgentsPage() {
             </div>
           ))}
           <div className="text-on-primary-container mt-1 flex items-center">
-            <span className="text-outline mr-2 md:mr-4">[{new Date().toLocaleTimeString("tr-TR", { hour12: false })}]</span>
+            <span suppressHydrationWarning className="text-outline mr-2 md:mr-4">[{new Date().toLocaleTimeString("tr-TR", { hour12: false })}]</span>
             <span className="w-2 h-4 bg-secondary animate-pulse inline-block" />
           </div>
         </div>

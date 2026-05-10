@@ -1,40 +1,30 @@
 "use client";
 
 import { useState, useRef, useEffect } from "react";
-import { sendChat, sendWhatsAppMessage, getWhatsAppHistory, type ChatMessage, type ChatResponse } from "@/lib/api";
+import { sendChat, sendWhatsAppMessage, type ChatMessage, type ChatResponse } from "@/lib/api";
+import { useAppContext } from "@/lib/AppContext";
 
 export default function CustomersPage() {
-  const [messages, setMessages] = useState<ChatMessage[]>([]);
+  const {
+    messages, setMessages,
+    toolCalls, setToolCalls,
+    provider, setProvider,
+    waHistory,
+    waNumber, setWaNumber,
+    waMessage, setWaMessage
+  } = useAppContext();
+
   const [input, setInput] = useState("");
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
-  const [toolCalls, setToolCalls] = useState<ChatResponse["tool_calls"]>([]);
   const [showTools, setShowTools] = useState(false);
-  const [provider, setProvider] = useState<"ollama" | "groq">("ollama");
   const messagesEndRef = useRef<HTMLDivElement>(null);
 
-  // WhatsApp Integration State
-  const [waNumber, setWaNumber] = useState("");
-  const [waMessage, setWaMessage] = useState("");
+  // WhatsApp Integration State (local UI state only)
   const [waSending, setWaSending] = useState(false);
   const [waStatus, setWaStatus] = useState<{type: 'success' | 'error', text: string} | null>(null);
-  const [waHistory, setWaHistory] = useState<Record<string, ChatMessage[]>>({});
 
-  // Poll WhatsApp History
-  useEffect(() => {
-    const fetchHistory = async () => {
-      try {
-        const data = await getWhatsAppHistory();
-        setWaHistory(data.conversations || {});
-      } catch (err) {
-        console.error("Failed to fetch WhatsApp history", err);
-      }
-    };
-    
-    fetchHistory();
-    const interval = setInterval(fetchHistory, 3000);
-    return () => clearInterval(interval);
-  }, []);
+
 
   // Auto-scroll to bottom on new messages
   useEffect(() => {

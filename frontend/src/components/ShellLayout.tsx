@@ -3,6 +3,7 @@
 import { useState, useCallback } from "react";
 import Sidebar from "@/components/Sidebar";
 import TopNav from "@/components/TopNav";
+import { AppProvider } from "@/lib/AppContext";
 
 export default function ShellLayout({ children }: { children: React.ReactNode }) {
   const [sidebarOpen, setSidebarOpen] = useState(false);
@@ -11,7 +12,7 @@ export default function ShellLayout({ children }: { children: React.ReactNode })
   const closeSidebar = useCallback(() => setSidebarOpen(false), []);
 
   return (
-    <>
+    <AppProvider>
       <Sidebar mobileOpen={sidebarOpen} onClose={closeSidebar} />
       <div className="flex-1 flex flex-col min-w-0 overflow-hidden">
         <TopNav onMenuClick={openSidebar} />
@@ -19,6 +20,6 @@ export default function ShellLayout({ children }: { children: React.ReactNode })
           {children}
         </main>
       </div>
-    </>
+    </AppProvider>
   );
 }
