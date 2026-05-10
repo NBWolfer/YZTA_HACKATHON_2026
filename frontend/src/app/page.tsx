@@ -22,6 +22,16 @@ export default function DashboardPage() {
   const [activities, setActivities] = useState<RecentActivities | null>(null);
   const [summaryState, setSummaryState] = useState<LoadState>("loading");
   const [activitiesState, setActivitiesState] = useState<LoadState>("loading");
+  const [userName, setUserName] = useState("Yönetici");
+
+  useEffect(() => {
+    const userStr = localStorage.getItem("user");
+    if (userStr) {
+      try {
+        setUserName(JSON.parse(userStr).name);
+      } catch (e) {}
+    }
+  }, []);
 
   const fetchSummary = useCallback(() => {
     setSummaryState("loading");
@@ -56,7 +66,7 @@ export default function DashboardPage() {
       <div className="flex flex-col md:flex-row md:items-end justify-between gap-2">
         <div>
           <h2 className="font-headline text-2xl md:text-3xl font-bold text-primary tracking-tight">
-            Güzel sabahlar, Ali Bey!
+            Güzel sabahlar, {userName}!
           </h2>
           <p className="text-on-surface-variant mt-1 text-sm md:text-base">
             İşleriniz bugün nasıl gidiyor? İşte sabah özetiniz.
