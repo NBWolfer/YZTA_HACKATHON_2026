@@ -29,6 +29,7 @@ export default function InventoryPage() {
   const [lowStockState, setLowStockState] = useState<LoadState>("loading");
   const [selectedCategory, setSelectedCategory] = useState<string>("");
   const [searchQuery, setSearchQuery] = useState<string>("");
+  const [predictionProduct, setPredictionProduct] = useState<{name: string, category: string, stock: number} | null>(null);
 
   const fetchProducts = useCallback((category?: string) => {
     setProductsState("loading");
@@ -67,6 +68,24 @@ export default function InventoryPage() {
     p.category.toLowerCase().includes(searchQuery.toLowerCase())
   );
 
+  const handleExport = () => {
+    if (!filteredProducts || filteredProducts.length === 0) return;
+    
+    const headers = ["ID,Ürün Adı,Kategori,Stok Miktarı,Birim,Birim Fiyat,Durum"];
+    const rows = filteredProducts.map(p => 
+      `${p.id},"${p.name}","${p.category}",${p.stock_quantity},${p.stock_unit},${p.unit_price},"${p.status}"`
+    );
+    
+    const csvContent = "data:text/csv;charset=utf-8,\uFEFF" + headers.concat(rows).join("\n");
+    const encodedUri = encodeURI(csvContent);
+    const link = document.createElement("a");
+    link.setAttribute("href", encodedUri);
+    link.setAttribute("download", `envanter_${new Date().toISOString().split('T')[0]}.csv`);
+    document.body.appendChild(link);
+    link.click();
+    document.body.removeChild(link);
+  };
+
   return (
     <div className="max-w-[1440px] mx-auto flex flex-col gap-6 md:gap-8 animate-fade-in">
       {/* Page Header */}
@@ -102,7 +121,10 @@ export default function InventoryPage() {
             <option value="Tekstil">Tekstil</option>
             <option value="Baharat">Baharat</option>
           </select>
-          <button className="flex items-center gap-1 px-3 md:px-4 py-2 border border-outline-variant rounded-lg bg-surface-container-lowest hover:bg-surface-container transition-colors text-xs font-semibold tracking-wider uppercase">
+          <button 
+            onClick={handleExport}
+            className="flex items-center gap-1 px-3 md:px-4 py-2 border border-outline-variant rounded-lg bg-surface-container-lowest hover:bg-surface-container transition-colors text-xs font-semibold tracking-wider uppercase active:scale-95"
+          >
             <span className="material-symbols-outlined text-[18px]">download</span>
             <span className="hidden sm:inline">Dışa Aktar</span>
           </button>
@@ -216,7 +238,9 @@ export default function InventoryPage() {
                             </span>
                           </td>
                           <td className="py-3 px-4 hidden md:table-cell">
-                            <button className={`w-full flex items-center justify-center gap-1 px-3 py-1.5 rounded-lg text-xs font-semibold transition-all duration-200 active:scale-95 ${
+                            <button 
+                              onClick={() => p.status === "In Stock" ? setPredictionProduct({name: p.name, category: p.category, stock: p.stock_quantity}) : null}
+                              className={`w-full flex items-center justify-center gap-1 px-3 py-1.5 rounded-lg text-xs font-semibold transition-all duration-200 active:scale-95 ${
                               p.status === "Low Stock"
                                 ? "bg-secondary text-on-secondary hover:opacity-90 shadow-sm"
                                 : "bg-primary/5 hover:bg-primary/10 text-primary border border-primary/20"
@@ -291,6 +315,70 @@ export default function InventoryPage() {
           )}
         </div>
       </div>
+
+      {/* AI Prediction Modal */}
+      {predictionProduct && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4">
+          <div className="absolute inset-0 bg-inverse-surface/60 backdrop-blur-sm" onClick={() => setPredictionProduct(null)} />
+          <div className="relative bg-surface-container-lowest rounded-2xl shadow-2xl w-full max-w-lg border border-outline-variant overflow-hidden animate-slide-up flex flex-col">
+            
+            <div className="bg-surface-bright px-6 py-4 border-b border-outline-variant flex justify-between items-center">
+              <div className="flex items-center gap-2">
+                <div className="w-8 h-8 rounded-full bg-primary/10 text-primary flex items-center justify-center shadow-sm">
+                  <span className="material-symbols-outlined text-sm">auto_awesome</span>
+                </div>
+                <h3 className="font-headline font-bold text-primary">SME Copilot: Talep Tahmini</h3>
+              </div>
+              <button 
+                onClick={() => setPredictionProduct(null)}
+                className="p-1 hover:bg-surface-container-high rounded-full transition-colors"
+              >
+                <span className="material-symbols-outlined">close</span>
+              </button>
+            </div>
+
+            <div className="p-6">
+              <div className="mb-6">
+                <h4 className="text-lg font-bold text-on-surface">{predictionProduct.name}</h4>
+                <p className="text-sm text-on-surface-variant flex items-center gap-2 mt-1">
+                  <span className="material-symbols-outlined text-[16px]">category</span> {predictionProduct.category}
+                  <span className="text-outline-variant">|</span>
+                  <span className="material-symbols-outlined text-[16px]">inventory_2</span> Mevcut Stok: {predictionProduct.stock}
+                </p>
+              </div>
+
+              {/* AI Insight Box */}
+              <div className="bg-primary/5 border border-primary/20 rounded-xl p-4 mb-6 flex items-start gap-3">
+                <span className="material-symbols-outlined text-primary mt-0.5">insights</span>
+                <p className="text-sm text-on-surface leading-relaxed">
+                  Son 30 günlük satış trendleri ve yaklaşan dönemsel hareketlilik incelendiğinde, bu ürüne olan talebin <strong>önümüzdeki 7 gün içinde %24 artması</strong> bekleniyor. Stok seviyenizin cuma gününe kadar kritik seviyeye inme ihtimali yüksektir.
+                </p>
+              </div>
+
+              {/* Mock Chart */}
+              <div>
+                <h5 className="text-xs font-semibold tracking-wider uppercase text-on-surface-variant mb-4">Önümüzdeki 7 Günlük Satış Tahmini (Adet)</h5>
+                <div className="h-32 flex items-end justify-between gap-2 pb-2">
+                  {[12, 15, 14, 22, 28, 35, 30].map((val, i) => (
+                    <div key={i} className="w-full flex flex-col items-center gap-2 group">
+                      <div className="w-full bg-primary/20 rounded-t-sm group-hover:bg-primary transition-colors relative" style={{ height: `${(val / 40) * 100}%`, animation: `slide-up 0.4s ease-out ${i * 50}ms both` }}>
+                        <span className="absolute -top-6 left-1/2 -translate-x-1/2 text-[10px] font-bold text-primary opacity-0 group-hover:opacity-100 transition-opacity">
+                          {val}
+                        </span>
+                      </div>
+                      <span className="text-[10px] text-on-surface-variant font-mono">
+                        {['Bugün', 'Yrn', '+2', '+3', '+4', '+5', '+6'][i]}
+                      </span>
+                    </div>
+                  ))}
+                </div>
+              </div>
+            </div>
+            
+          </div>
+        </div>
+      )}
+
     </div>
   );
 }

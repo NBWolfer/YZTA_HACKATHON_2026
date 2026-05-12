@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useState, useCallback } from "react";
+import Link from "next/link";
 import { getDashboardSummary, getRecentActivities } from "@/lib/api";
 import type { DashboardSummary, RecentActivities } from "@/lib/api";
 import { SkeletonCard, SkeletonTable } from "@/components/ui/LoadingSpinner";
@@ -191,9 +192,9 @@ export default function DashboardPage() {
       <div className="bg-surface-container-lowest border border-outline-variant rounded-xl micro-shadow overflow-hidden animate-slide-up" style={{ animationDelay: "200ms" }}>
         <div className="px-4 py-3 border-b border-outline-variant flex justify-between items-center bg-surface-bright">
           <h3 className="font-headline font-semibold text-primary text-sm md:text-base">Son Aktiviteler</h3>
-          <button className="text-xs font-semibold tracking-wider uppercase text-secondary hover:underline">
+          <Link href="/orders" className="text-xs font-semibold tracking-wider uppercase text-secondary hover:underline">
             Tümünü Gör
-          </button>
+          </Link>
         </div>
 
         {activitiesState === "loading" ? (
