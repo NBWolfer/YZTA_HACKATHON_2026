@@ -9,6 +9,7 @@ const navItems = [
   { href: "/agents", label: "Agents", icon: "smart_toy" },
   { href: "/customers", label: "Müşteriler", icon: "forum" },
   { href: "/inventory", label: "Envanter", icon: "inventory_2" },
+  { href: "/orders", label: "Siparişler", icon: "local_shipping" },
   { href: "/settings", label: "Ayarlar", icon: "settings" },
 ];
 
