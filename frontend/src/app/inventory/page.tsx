@@ -54,6 +54,8 @@ export default function InventoryPage() {
       setRestockingId(null);
     }
   };
+  const [searchQuery, setSearchQuery] = useState<string>("");
+  const [predictionProduct, setPredictionProduct] = useState<{name: string, category: string, stock: number} | null>(null);
 
   const fetchProducts = useCallback((category?: string) => {
     setProductsState("loading");
@@ -114,6 +116,29 @@ export default function InventoryPage() {
     );
   }
 
+  const filteredProducts = products?.products?.filter((p) =>
+    p.name.toLowerCase().includes(searchQuery.toLowerCase()) ||
+    p.category.toLowerCase().includes(searchQuery.toLowerCase())
+  );
+
+  const handleExport = () => {
+    if (!filteredProducts || filteredProducts.length === 0) return;
+    
+    const headers = ["ID,Ürün Adı,Kategori,Stok Miktarı,Birim,Birim Fiyat,Durum"];
+    const rows = filteredProducts.map(p => 
+      `${p.id},"${p.name}","${p.category}",${p.stock_quantity},${p.stock_unit},${p.unit_price},"${p.status}"`
+    );
+    
+    const csvContent = "data:text/csv;charset=utf-8,\uFEFF" + headers.concat(rows).join("\n");
+    const encodedUri = encodeURI(csvContent);
+    const link = document.createElement("a");
+    link.setAttribute("href", encodedUri);
+    link.setAttribute("download", `envanter_${new Date().toISOString().split('T')[0]}.csv`);
+    document.body.appendChild(link);
+    link.click();
+    document.body.removeChild(link);
+  };
+
   return (
     <div className="max-w-[1440px] mx-auto flex flex-col gap-6 md:gap-8 animate-fade-in">
       {/* Page Header */}
@@ -126,7 +151,17 @@ export default function InventoryPage() {
             Gerçek zamanlı depo durumu ve AI destekli tahminler.
           </p>
         </div>
-        <div className="flex items-center gap-2">
+        <div className="flex flex-col sm:flex-row items-center gap-2">
+          <div className="relative w-full sm:w-auto">
+            <span className="absolute left-3 top-1/2 -translate-y-1/2 material-symbols-outlined text-outline text-[18px]">search</span>
+            <input
+              type="text"
+              placeholder="Ürün Ara..."
+              value={searchQuery}
+              onChange={(e) => setSearchQuery(e.target.value)}
+              className="w-full sm:w-64 px-3 py-2 pl-9 border border-outline-variant rounded-lg bg-surface-container-lowest text-sm focus:border-secondary focus:ring-1 focus:ring-secondary outline-none"
+            />
+          </div>
           <select
             value={selectedCategory}
             onChange={(e) => handleCategoryChange(e.target.value)}
@@ -149,6 +184,38 @@ export default function InventoryPage() {
         </div>
       </div>
 
+      {/* Summary Cards */}
+      <div className="grid grid-cols-2 lg:grid-cols-4 gap-4 animate-slide-up" style={{ animationDelay: "50ms" }}>
+        <div className="bg-surface-container-lowest border border-outline-variant rounded-xl p-4 micro-shadow flex flex-col justify-between h-28 hover:elevation-1 transition-shadow">
+          <div className="flex justify-between items-start">
+            <span className="text-xs font-semibold tracking-wider uppercase text-on-surface-variant">Toplam Ürün</span>
+            <span className="material-symbols-outlined text-outline">inventory_2</span>
+          </div>
+          <span className="font-headline text-3xl font-bold text-primary">{productsState === "loaded" ? products?.total ?? 0 : "—"}</span>
+        </div>
+        <div className="bg-surface-container-lowest border border-outline-variant rounded-xl p-4 micro-shadow flex flex-col justify-between h-28 hover:elevation-1 transition-shadow">
+          <div className="flex justify-between items-start">
+            <span className="text-xs font-semibold tracking-wider uppercase text-on-surface-variant">Kategoriler</span>
+            <span className="material-symbols-outlined text-outline">category</span>
+          </div>
+          <span className="font-headline text-3xl font-bold text-primary">5</span>
+        </div>
+        <div className="bg-surface-container-lowest border-l-4 border-l-tertiary-fixed-dim border-y border-r border-outline-variant rounded-xl p-4 micro-shadow flex flex-col justify-between h-28 hover:elevation-1 transition-shadow">
+          <div className="flex justify-between items-start">
+            <span className="text-xs font-semibold tracking-wider uppercase text-tertiary">Kritik Stok</span>
+            <span className="material-symbols-outlined text-tertiary">warning</span>
+          </div>
+          <span className="font-headline text-3xl font-bold text-tertiary">{lowStockState === "loaded" ? lowStock?.products?.length ?? 0 : "—"}</span>
+        </div>
+        <div className="bg-surface-container-lowest border-l-4 border-l-error border-y border-r border-outline-variant rounded-xl p-4 micro-shadow flex flex-col justify-between h-28 hover:elevation-1 transition-shadow">
+          <div className="flex justify-between items-start">
+            <span className="text-xs font-semibold tracking-wider uppercase text-error">Tükenen</span>
+            <span className="material-symbols-outlined text-error">block</span>
+          </div>
+          <span className="font-headline text-3xl font-bold text-error">{productsState === "loaded" ? products?.products?.filter(p => p.status === "Out of Stock").length ?? 0 : "—"}</span>
+        </div>
+      </div>
+
       {/* Main Grid */}
       <div className="grid grid-cols-1 lg:grid-cols-12 gap-6">
         {/* Product Table (8 cols) */}
@@ -167,12 +234,12 @@ export default function InventoryPage() {
               <div className="p-4">
                 <InlineError message="Ürünler yüklenemedi." onRetry={() => fetchProducts(selectedCategory)} />
               </div>
-            ) : !products?.products?.length ? (
+            ) : !filteredProducts?.length ? (
               <EmptyState
-                icon="inventory_2"
+                icon="search_off"
                 title="Ürün bulunamadı"
-                description={selectedCategory ? `"${selectedCategory}" kategorisinde ürün yok.` : "Henüz envantere ürün eklenmemiş."}
-                action={selectedCategory ? { label: "Filtreyi Temizle", onClick: () => handleCategoryChange("") } : undefined}
+                description={searchQuery ? `"${searchQuery}" aramasına uygun ürün yok.` : selectedCategory ? `"${selectedCategory}" kategorisinde ürün yok.` : "Henüz envantere ürün eklenmemiş."}
+                action={(searchQuery || selectedCategory) ? { label: "Filtreyi Temizle", onClick: () => { handleCategoryChange(""); setSearchQuery(""); } } : undefined}
               />
             ) : (
               <div className="overflow-x-auto">
@@ -187,12 +254,12 @@ export default function InventoryPage() {
                     </tr>
                   </thead>
                   <tbody className="text-sm divide-y divide-outline-variant">
-                    {products.products.map((p, index) => {
+                    {filteredProducts.map((p, index) => {
                       const status = statusConfig[p.status] ?? statusConfig["In Stock"];
                       return (
                         <tr
                           key={p.id}
-                          className={`hover:bg-surface-container-lowest transition-colors duration-150 ${p.status === "Low Stock" ? "bg-error-container/10" : ""}`}
+                          className={`hover:bg-surface-container transition-all duration-200 group border-b border-outline-variant/50 last:border-0 ${p.status === "Low Stock" ? "bg-tertiary-fixed/10 hover:bg-tertiary-fixed/20" : ""}`}
                           style={{ animation: `fade-in 0.3s ease-out ${index * 30}ms both` }}
                         >
                           <td className="py-3 px-4">
@@ -224,17 +291,17 @@ export default function InventoryPage() {
                             </span>
                           </td>
                           <td className="py-3 px-4 hidden md:table-cell">
-                            <button 
+                            <button
                               onClick={() => setActiveModal({ type: p.status === "Low Stock" ? "email" : p.status === "Out of Stock" ? "edit" : "predict", product: p })}
                               className={`w-full flex items-center justify-center gap-1 px-3 py-1.5 rounded text-xs font-semibold transition-all duration-200 active:scale-95 ${
                               p.status === "Low Stock"
-                                ? "bg-secondary text-on-secondary hover:opacity-90"
-                                : "bg-surface-container hover:bg-surface-container-high border border-outline-variant"
+                                ? "bg-secondary text-on-secondary hover:opacity-90 shadow-sm"
+                                : "bg-primary/5 hover:bg-primary/10 text-primary border border-primary/20"
                             }`}>
                               <span className="material-symbols-outlined text-[16px]">
                                 {p.status === "Low Stock" ? "mail" : p.status === "Out of Stock" ? "edit" : "auto_awesome"}
                               </span>
-                              {p.status === "Low Stock" ? "Sipariş E-postası" : p.status === "Out of Stock" ? "Stok Düzenle" : "Tahmin Gör"}
+                              {p.status === "Low Stock" ? "Sipariş Geç" : p.status === "Out of Stock" ? "Stok Güncelle" : "Tahmin Gör"}
                             </button>
                           </td>
                         </tr>
@@ -399,6 +466,67 @@ Lütfen en kısa sürede 100 ${activeModal.product.stock_unit} tutarında yeni b
           )}
         </>,
         document.body
+      {/* AI Prediction Modal */}
+      {predictionProduct && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4">
+          <div className="absolute inset-0 bg-inverse-surface/60 backdrop-blur-sm" onClick={() => setPredictionProduct(null)} />
+          <div className="relative bg-surface-container-lowest rounded-2xl shadow-2xl w-full max-w-lg border border-outline-variant overflow-hidden animate-slide-up flex flex-col">
+            
+            <div className="bg-surface-bright px-6 py-4 border-b border-outline-variant flex justify-between items-center">
+              <div className="flex items-center gap-2">
+                <div className="w-8 h-8 rounded-full bg-primary/10 text-primary flex items-center justify-center shadow-sm">
+                  <span className="material-symbols-outlined text-sm">auto_awesome</span>
+                </div>
+                <h3 className="font-headline font-bold text-primary">SME Copilot: Talep Tahmini</h3>
+              </div>
+              <button 
+                onClick={() => setPredictionProduct(null)}
+                className="p-1 hover:bg-surface-container-high rounded-full transition-colors"
+              >
+                <span className="material-symbols-outlined">close</span>
+              </button>
+            </div>
+
+            <div className="p-6">
+              <div className="mb-6">
+                <h4 className="text-lg font-bold text-on-surface">{predictionProduct.name}</h4>
+                <p className="text-sm text-on-surface-variant flex items-center gap-2 mt-1">
+                  <span className="material-symbols-outlined text-[16px]">category</span> {predictionProduct.category}
+                  <span className="text-outline-variant">|</span>
+                  <span className="material-symbols-outlined text-[16px]">inventory_2</span> Mevcut Stok: {predictionProduct.stock}
+                </p>
+              </div>
+
+              {/* AI Insight Box */}
+              <div className="bg-primary/5 border border-primary/20 rounded-xl p-4 mb-6 flex items-start gap-3">
+                <span className="material-symbols-outlined text-primary mt-0.5">insights</span>
+                <p className="text-sm text-on-surface leading-relaxed">
+                  Son 30 günlük satış trendleri ve yaklaşan dönemsel hareketlilik incelendiğinde, bu ürüne olan talebin <strong>önümüzdeki 7 gün içinde %24 artması</strong> bekleniyor. Stok seviyenizin cuma gününe kadar kritik seviyeye inme ihtimali yüksektir.
+                </p>
+              </div>
+
+              {/* Mock Chart */}
+              <div>
+                <h5 className="text-xs font-semibold tracking-wider uppercase text-on-surface-variant mb-4">Önümüzdeki 7 Günlük Satış Tahmini (Adet)</h5>
+                <div className="h-32 flex items-end justify-between gap-2 pb-2">
+                  {[12, 15, 14, 22, 28, 35, 30].map((val, i) => (
+                    <div key={i} className="w-full flex flex-col items-center gap-2 group">
+                      <div className="w-full bg-primary/20 rounded-t-sm group-hover:bg-primary transition-colors relative" style={{ height: `${(val / 40) * 100}%`, animation: `slide-up 0.4s ease-out ${i * 50}ms both` }}>
+                        <span className="absolute -top-6 left-1/2 -translate-x-1/2 text-[10px] font-bold text-primary opacity-0 group-hover:opacity-100 transition-opacity">
+                          {val}
+                        </span>
+                      </div>
+                      <span className="text-[10px] text-on-surface-variant font-mono">
+                        {['Bugün', 'Yrn', '+2', '+3', '+4', '+5', '+6'][i]}
+                      </span>
+                    </div>
+                  ))}
+                </div>
+              </div>
+            </div>
+            
+          </div>
+        </div>
       )}
 
     </div>

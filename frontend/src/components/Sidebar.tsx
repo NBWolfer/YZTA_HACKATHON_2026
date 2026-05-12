@@ -10,6 +10,8 @@ const navItems = [
   { href: "/agents", label: "Agents", icon: "smart_toy" },
   { href: "/customers", label: "Müşteriler", icon: "forum" },
   { href: "/inventory", label: "Envanter", icon: "inventory_2" },
+  { href: "/orders", label: "Siparişler", icon: "local_shipping" },
+  { href: "/settings", label: "Ayarlar", icon: "settings" },
 ];
 
 interface SidebarProps {
@@ -93,7 +95,7 @@ export default function Sidebar({ mobileOpen = false, onClose }: SidebarProps) {
           }}
           className="w-full flex items-center gap-3 px-4 py-2 text-on-surface-variant hover:bg-surface-container-high rounded-xl transition-all text-sm"
         >
-          <span className="material-symbols-outlined text-outline">logout</span>
+          <span className="material-symbols-outlined text-error">logout</span>
           Çıkış
         </button>
       </div>

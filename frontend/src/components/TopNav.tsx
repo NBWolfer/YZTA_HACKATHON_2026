@@ -1,6 +1,8 @@
 "use client";
 import { useState, useRef, useEffect } from "react";
 
+import { useState, useRef, useEffect } from "react";
+
 interface TopNavProps {
   title?: string;
   onMenuClick?: () => void;
@@ -9,13 +11,11 @@ interface TopNavProps {
 export default function TopNav({ title = "SME AI Command", onMenuClick }: TopNavProps) {
   const [searchQuery, setSearchQuery] = useState("");
   const [isSearchActive, setIsSearchActive] = useState(false);
-  const [isNotifOpen, setIsNotifOpen] = useState(false);
   const [isProfileOpen, setIsProfileOpen] = useState(false);
   
   const [user, setUser] = useState<{name: string, email: string} | null>(null);
   
   const searchRef = useRef<HTMLDivElement>(null);
-  const notifRef = useRef<HTMLDivElement>(null);
   const profileRef = useRef<HTMLDivElement>(null);
 
   // Click outside to close dropdowns
@@ -27,9 +27,18 @@ export default function TopNav({ title = "SME AI Command", onMenuClick }: TopNav
 
     const handleClickOutside = (e: MouseEvent) => {
       if (searchRef.current && !searchRef.current.contains(e.target as Node)) setIsSearchActive(false);
-      if (notifRef.current && !notifRef.current.contains(e.target as Node)) setIsNotifOpen(false);
       if (profileRef.current && !profileRef.current.contains(e.target as Node)) setIsProfileOpen(false);
     };
+
+  const [showNotifications, setShowNotifications] = useState(false);
+  const dropdownRef = useRef<HTMLDivElement>(null);
+
+  useEffect(() => {
+    function handleClickOutside(event: MouseEvent) {
+      if (dropdownRef.current && !dropdownRef.current.contains(event.target as Node)) {
+        setShowNotifications(false);
+      }
+    }
     document.addEventListener("mousedown", handleClickOutside);
     return () => document.removeEventListener("mousedown", handleClickOutside);
   }, []);
@@ -97,51 +106,60 @@ export default function TopNav({ title = "SME AI Command", onMenuClick }: TopNav
           >
             <span className="material-symbols-outlined">monitor_heart</span>
           </button>
-          
-          <div className="relative" ref={notifRef}>
+          <div className="relative" ref={dropdownRef}>
             <button 
-              onClick={() => setIsNotifOpen(!isNotifOpen)}
-              className={`p-1.5 rounded-full transition-colors relative ${isNotifOpen ? "bg-surface-container-high" : "hover:bg-surface-container-high"}`}
+              onClick={() => setShowNotifications(!showNotifications)}
+              className="p-1.5 hover:bg-surface-container-high rounded-full transition-colors relative"
             >
               <span className="material-symbols-outlined">notifications</span>
               <span className="absolute top-1 right-1 w-2 h-2 bg-error rounded-full" />
             </button>
-            {isNotifOpen && (
-              <div className="absolute top-full right-0 mt-2 w-72 bg-surface-container-lowest border border-outline-variant rounded-xl shadow-lg z-50 animate-slide-up overflow-hidden">
+            {showNotifications && (
+              <div className="absolute right-0 mt-2 w-72 bg-surface-container-lowest border border-outline-variant rounded-xl shadow-lg overflow-hidden animate-slide-up z-50">
                 <div className="p-3 border-b border-outline-variant bg-surface-bright flex justify-between items-center">
-                  <h4 className="font-semibold text-sm">Bildirimler</h4>
-                  <span className="text-xs text-secondary cursor-pointer hover:underline" onClick={() => setIsNotifOpen(false)}>Okundu işaretle</span>
+                  <h4 className="font-semibold text-sm text-primary">Bildirimler</h4>
+                  <span className="text-xs text-secondary hover:underline cursor-pointer">Tümünü Oku</span>
                 </div>
-                <div className="max-h-64 overflow-y-auto flex flex-col">
-                  <div className="p-3 border-b border-outline-variant hover:bg-surface-container-low cursor-pointer transition-colors flex gap-3">
-                    <div className="w-8 h-8 rounded-full bg-error-container text-on-error-container flex items-center justify-center shrink-0">
-                      <span className="material-symbols-outlined text-[18px]">warning</span>
+                <div className="flex flex-col max-h-80 overflow-y-auto">
+                  <div className="p-3 hover:bg-surface-container-low border-b border-outline-variant/50 cursor-pointer flex gap-3 items-start transition-colors">
+                    <div className="w-8 h-8 rounded-full bg-error-container text-on-error-container flex items-center justify-center shrink-0 mt-0.5">
+                      <span className="material-symbols-outlined text-[16px]">warning</span>
                     </div>
                     <div>
-                      <p className="text-sm font-medium">Kritik Stok Uyarısı</p>
-                      <p className="text-xs text-on-surface-variant">Lavanta Sabunu stoğu 5 adede düştü. Sipariş verin.</p>
-                      <p className="text-[10px] text-outline mt-1">2 dk önce</p>
+                      <p className="text-sm font-semibold text-on-surface">Kritik Stok Uyarısı</p>
+                      <p className="text-xs text-on-surface-variant mt-0.5">Zeytinyağı stokları tükendi. Üretim durabilir.</p>
+                      <p className="text-[10px] text-outline mt-1 font-mono">5 dk önce</p>
                     </div>
                   </div>
-                  <div className="p-3 border-b border-outline-variant hover:bg-surface-container-low cursor-pointer transition-colors flex gap-3">
-                    <div className="w-8 h-8 rounded-full bg-secondary-container text-on-secondary-container flex items-center justify-center shrink-0">
-                      <span className="material-symbols-outlined text-[18px]">local_shipping</span>
+                  <div className="p-3 hover:bg-surface-container-low border-b border-outline-variant/50 cursor-pointer flex gap-3 items-start transition-colors">
+                    <div className="w-8 h-8 rounded-full bg-[#D1FAE5] text-[#065F46] flex items-center justify-center shrink-0 mt-0.5">
+                      <span className="material-symbols-outlined text-[16px]">check</span>
                     </div>
                     <div>
-                      <p className="text-sm font-medium">Sipariş Yola Çıktı</p>
-                      <p className="text-xs text-on-surface-variant">#1042 numaralı sipariş kargoya verildi.</p>
-                      <p className="text-[10px] text-outline mt-1">1 saat önce</p>
+                      <p className="text-sm font-semibold text-on-surface">Sipariş Gönderildi</p>
+                      <p className="text-xs text-on-surface-variant mt-0.5">Ege Zeytincilik'e 100 Lt zeytinyağı siparişi iletildi.</p>
+                      <p className="text-[10px] text-outline mt-1 font-mono">15 dk önce</p>
                     </div>
                   </div>
+                  <div className="p-3 hover:bg-surface-container-low cursor-pointer flex gap-3 items-start transition-colors">
+                    <div className="w-8 h-8 rounded-full bg-secondary-container text-on-secondary-container flex items-center justify-center shrink-0 mt-0.5">
+                      <span className="material-symbols-outlined text-[16px]">smart_toy</span>
+                    </div>
+                    <div>
+                      <p className="text-sm font-semibold text-on-surface">AI Haftalık Raporu</p>
+                      <p className="text-xs text-on-surface-variant mt-0.5">Geçen haftanın analizleri ve yeni trend tahminleri.</p>
+                      <p className="text-[10px] text-outline mt-1 font-mono">2 saat önce</p>
+                    </div>
+                  </div>
+                </div>
+                <div className="p-2 border-t border-outline-variant bg-surface-bright text-center">
+                  <span className="text-xs font-semibold tracking-wider uppercase text-primary hover:underline cursor-pointer">Tümünü Gör</span>
                 </div>
               </div>
             )}
           </div>
+          <button className="p-1.5 hover:bg-surface-container-high rounded-full transition-colors hidden sm:block">
 
-          <button 
-            onClick={() => alert("Ayarlar menüsü yapım aşamasındadır.")}
-            className="p-1.5 hover:bg-surface-container-high rounded-full transition-colors hidden sm:block"
-          >
             <span className="material-symbols-outlined">settings</span>
           </button>
         </div>
