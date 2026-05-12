@@ -9,6 +9,7 @@ const navItems = [
   { href: "/agents", label: "Agents", icon: "smart_toy" },
   { href: "/customers", label: "Müşteriler", icon: "forum" },
   { href: "/inventory", label: "Envanter", icon: "inventory_2" },
+  { href: "/settings", label: "Ayarlar", icon: "settings" },
 ];
 
 interface SidebarProps {
@@ -74,11 +75,6 @@ export default function Sidebar({ mobileOpen = false, onClose }: SidebarProps) {
 
       {/* CTA */}
       <div className="mt-auto flex flex-col gap-3">
-        <button className="w-full bg-secondary text-on-secondary text-xs font-semibold tracking-wider uppercase py-3 rounded-xl flex justify-center items-center gap-2 hover:opacity-90 transition-opacity shadow-sm active:scale-[0.98]">
-          <span className="material-symbols-outlined text-sm">route</span>
-          Rota Optimize Et
-        </button>
-        <hr className="border-outline-variant" />
         <Link
           href="#"
           className="flex items-center gap-3 px-4 py-2 text-on-surface-variant hover:bg-surface-container-high rounded-xl transition-all text-sm"
@@ -87,10 +83,10 @@ export default function Sidebar({ mobileOpen = false, onClose }: SidebarProps) {
           Yardım
         </Link>
         <Link
-          href="#"
-          className="flex items-center gap-3 px-4 py-2 text-on-surface-variant hover:bg-surface-container-high rounded-xl transition-all text-sm"
+          href="/login"
+          className="flex items-center gap-3 px-4 py-2 text-on-surface-variant hover:bg-surface-container-high rounded-xl transition-all text-sm text-error hover:text-error hover:bg-error-container/10"
         >
-          <span className="material-symbols-outlined text-outline">logout</span>
+          <span className="material-symbols-outlined text-error">logout</span>
           Çıkış
         </Link>
       </div>

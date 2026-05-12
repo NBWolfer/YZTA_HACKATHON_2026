@@ -28,6 +28,7 @@ export default function InventoryPage() {
   const [productsState, setProductsState] = useState<LoadState>("loading");
   const [lowStockState, setLowStockState] = useState<LoadState>("loading");
   const [selectedCategory, setSelectedCategory] = useState<string>("");
+  const [searchQuery, setSearchQuery] = useState<string>("");
 
   const fetchProducts = useCallback((category?: string) => {
     setProductsState("loading");
@@ -61,6 +62,11 @@ export default function InventoryPage() {
     );
   }
 
+  const filteredProducts = products?.products?.filter((p) =>
+    p.name.toLowerCase().includes(searchQuery.toLowerCase()) ||
+    p.category.toLowerCase().includes(searchQuery.toLowerCase())
+  );
+
   return (
     <div className="max-w-[1440px] mx-auto flex flex-col gap-6 md:gap-8 animate-fade-in">
       {/* Page Header */}
@@ -73,7 +79,17 @@ export default function InventoryPage() {
             Gerçek zamanlı depo durumu ve AI destekli tahminler.
           </p>
         </div>
-        <div className="flex items-center gap-2">
+        <div className="flex flex-col sm:flex-row items-center gap-2">
+          <div className="relative w-full sm:w-auto">
+            <span className="absolute left-3 top-1/2 -translate-y-1/2 material-symbols-outlined text-outline text-[18px]">search</span>
+            <input
+              type="text"
+              placeholder="Ürün Ara..."
+              value={searchQuery}
+              onChange={(e) => setSearchQuery(e.target.value)}
+              className="w-full sm:w-64 px-3 py-2 pl-9 border border-outline-variant rounded-lg bg-surface-container-lowest text-sm focus:border-secondary focus:ring-1 focus:ring-secondary outline-none"
+            />
+          </div>
           <select
             value={selectedCategory}
             onChange={(e) => handleCategoryChange(e.target.value)}
@@ -90,6 +106,38 @@ export default function InventoryPage() {
             <span className="material-symbols-outlined text-[18px]">download</span>
             <span className="hidden sm:inline">Dışa Aktar</span>
           </button>
+        </div>
+      </div>
+
+      {/* Summary Cards */}
+      <div className="grid grid-cols-2 lg:grid-cols-4 gap-4 animate-slide-up" style={{ animationDelay: "50ms" }}>
+        <div className="bg-surface-container-lowest border border-outline-variant rounded-xl p-4 micro-shadow flex flex-col justify-between h-28 hover:elevation-1 transition-shadow">
+          <div className="flex justify-between items-start">
+            <span className="text-xs font-semibold tracking-wider uppercase text-on-surface-variant">Toplam Ürün</span>
+            <span className="material-symbols-outlined text-outline">inventory_2</span>
+          </div>
+          <span className="font-headline text-3xl font-bold text-primary">{productsState === "loaded" ? products?.total ?? 0 : "—"}</span>
+        </div>
+        <div className="bg-surface-container-lowest border border-outline-variant rounded-xl p-4 micro-shadow flex flex-col justify-between h-28 hover:elevation-1 transition-shadow">
+          <div className="flex justify-between items-start">
+            <span className="text-xs font-semibold tracking-wider uppercase text-on-surface-variant">Kategoriler</span>
+            <span className="material-symbols-outlined text-outline">category</span>
+          </div>
+          <span className="font-headline text-3xl font-bold text-primary">5</span>
+        </div>
+        <div className="bg-surface-container-lowest border-l-4 border-l-tertiary-fixed-dim border-y border-r border-outline-variant rounded-xl p-4 micro-shadow flex flex-col justify-between h-28 hover:elevation-1 transition-shadow">
+          <div className="flex justify-between items-start">
+            <span className="text-xs font-semibold tracking-wider uppercase text-tertiary">Kritik Stok</span>
+            <span className="material-symbols-outlined text-tertiary">warning</span>
+          </div>
+          <span className="font-headline text-3xl font-bold text-tertiary">{lowStockState === "loaded" ? lowStock?.products?.length ?? 0 : "—"}</span>
+        </div>
+        <div className="bg-surface-container-lowest border-l-4 border-l-error border-y border-r border-outline-variant rounded-xl p-4 micro-shadow flex flex-col justify-between h-28 hover:elevation-1 transition-shadow">
+          <div className="flex justify-between items-start">
+            <span className="text-xs font-semibold tracking-wider uppercase text-error">Tükenen</span>
+            <span className="material-symbols-outlined text-error">block</span>
+          </div>
+          <span className="font-headline text-3xl font-bold text-error">{productsState === "loaded" ? products?.products?.filter(p => p.status === "Out of Stock").length ?? 0 : "—"}</span>
         </div>
       </div>
 
@@ -111,12 +159,12 @@ export default function InventoryPage() {
               <div className="p-4">
                 <InlineError message="Ürünler yüklenemedi." onRetry={() => fetchProducts(selectedCategory)} />
               </div>
-            ) : !products?.products?.length ? (
+            ) : !filteredProducts?.length ? (
               <EmptyState
-                icon="inventory_2"
+                icon="search_off"
                 title="Ürün bulunamadı"
-                description={selectedCategory ? `"${selectedCategory}" kategorisinde ürün yok.` : "Henüz envantere ürün eklenmemiş."}
-                action={selectedCategory ? { label: "Filtreyi Temizle", onClick: () => handleCategoryChange("") } : undefined}
+                description={searchQuery ? `"${searchQuery}" aramasına uygun ürün yok.` : selectedCategory ? `"${selectedCategory}" kategorisinde ürün yok.` : "Henüz envantere ürün eklenmemiş."}
+                action={(searchQuery || selectedCategory) ? { label: "Filtreyi Temizle", onClick: () => { handleCategoryChange(""); setSearchQuery(""); } } : undefined}
               />
             ) : (
               <div className="overflow-x-auto">
@@ -131,12 +179,12 @@ export default function InventoryPage() {
                     </tr>
                   </thead>
                   <tbody className="text-sm divide-y divide-outline-variant">
-                    {products.products.map((p, index) => {
+                    {filteredProducts.map((p, index) => {
                       const status = statusConfig[p.status] ?? statusConfig["In Stock"];
                       return (
                         <tr
                           key={p.id}
-                          className={`hover:bg-surface-container-lowest transition-colors duration-150 ${p.status === "Low Stock" ? "bg-error-container/10" : ""}`}
+                          className={`hover:bg-surface-container transition-all duration-200 group border-b border-outline-variant/50 last:border-0 ${p.status === "Low Stock" ? "bg-tertiary-fixed/10 hover:bg-tertiary-fixed/20" : ""}`}
                           style={{ animation: `fade-in 0.3s ease-out ${index * 30}ms both` }}
                         >
                           <td className="py-3 px-4">
@@ -168,15 +216,15 @@ export default function InventoryPage() {
                             </span>
                           </td>
                           <td className="py-3 px-4 hidden md:table-cell">
-                            <button className={`w-full flex items-center justify-center gap-1 px-3 py-1.5 rounded text-xs font-semibold transition-all duration-200 active:scale-95 ${
+                            <button className={`w-full flex items-center justify-center gap-1 px-3 py-1.5 rounded-lg text-xs font-semibold transition-all duration-200 active:scale-95 ${
                               p.status === "Low Stock"
-                                ? "bg-secondary text-on-secondary hover:opacity-90"
-                                : "bg-surface-container hover:bg-surface-container-high border border-outline-variant"
+                                ? "bg-secondary text-on-secondary hover:opacity-90 shadow-sm"
+                                : "bg-primary/5 hover:bg-primary/10 text-primary border border-primary/20"
                             }`}>
                               <span className="material-symbols-outlined text-[16px]">
                                 {p.status === "Low Stock" ? "mail" : p.status === "Out of Stock" ? "edit" : "auto_awesome"}
                               </span>
-                              {p.status === "Low Stock" ? "Sipariş E-postası" : p.status === "Out of Stock" ? "Stok Düzenle" : "Tahmin Gör"}
+                              {p.status === "Low Stock" ? "Sipariş Geç" : p.status === "Out of Stock" ? "Stok Güncelle" : "Tahmin Gör"}
                             </button>
                           </td>
                         </tr>
