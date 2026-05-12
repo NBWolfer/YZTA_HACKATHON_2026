@@ -178,7 +178,7 @@ async def chat(db: Session, messages: list[dict], provider: str = None) -> dict:
 
     # Choose correct client and model
     active_client = groq_client if provider == "groq" and groq_client else client
-    active_model = "llama3-8b-8192" if active_client == groq_client else settings.ollama_model
+    active_model = "llama-3.1-8b-instant" if active_client == groq_client else settings.ollama_model
 
     # Agent loop: keep calling until we get a final text response
     max_iterations = 5
@@ -200,11 +200,20 @@ async def chat(db: Session, messages: list[dict], provider: str = None) -> dict:
             }
 
         # Process tool calls
-        full_messages.append(choice.message.model_dump())
+        assistant_message = choice.message.model_dump(exclude_unset=True)
+        # Remove keys that might cause validation errors on Groq/OpenAI APIs
+        for key in ["function_call", "audio", "annotations"]:
+            assistant_message.pop(key, None)
+        full_messages.append(assistant_message)
 
         for tool_call in choice.message.tool_calls:
             fn_name = tool_call.function.name
-            fn_args = json.loads(tool_call.function.arguments)
+            try:
+                fn_args = json.loads(tool_call.function.arguments) if tool_call.function.arguments else {}
+                if not isinstance(fn_args, dict):
+                    fn_args = {}
+            except Exception:
+                fn_args = {}
 
             # Execute the tool
             if fn_name in TOOL_FUNCTIONS:

@@ -1,119 +1,147 @@
 "use client";
 
-import { useState } from "react";
+import { useState, useEffect } from "react";
+import { createPortal } from "react-dom";
 import { useRouter } from "next/navigation";
+import Link from "next/link";
+import { login } from "@/lib/api";
 
 export default function LoginPage() {
+  const [email, setEmail] = useState("");
+  const [password, setPassword] = useState("");
+  const [error, setError] = useState("");
+  const [loading, setLoading] = useState(false);
+  const [isForgotPwdOpen, setIsForgotPwdOpen] = useState(false);
+  const [mounted, setMounted] = useState(false);
   const router = useRouter();
-  const [email, setEmail] = useState("admin@sme.com");
-  const [password, setPassword] = useState("admin123");
-  const [isLoading, setIsLoading] = useState(false);
 
-  const handleLogin = (e: React.FormEvent) => {
+  useEffect(() => setMounted(true), []);
+
+  const handleLogin = async (e: React.FormEvent) => {
     e.preventDefault();
-    setIsLoading(true);
-    
-    // Simulate network delay
-    setTimeout(() => {
-      setIsLoading(false);
-      router.push("/");
-    }, 1200);
+    setError("");
+    setLoading(true);
+
+    try {
+      const res = await login({ email, password });
+      if (res.success) {
+        localStorage.setItem("user", JSON.stringify(res.user));
+        router.push("/");
+      }
+    } catch (err: any) {
+      setError(err.message || "Giriş yapılamadı. E-posta veya şifre hatalı.");
+    } finally {
+      setLoading(false);
+    }
   };
 
   return (
-    <div className="min-h-screen relative flex items-center justify-center bg-background overflow-hidden font-sans">
-      {/* Dynamic Background Elements */}
-      <div className="absolute top-[-10%] left-[-10%] w-[40%] h-[40%] bg-primary/20 rounded-full blur-[120px] animate-pulse pointer-events-none" style={{ animationDuration: '8s' }} />
-      <div className="absolute bottom-[-20%] right-[-10%] w-[50%] h-[50%] bg-secondary/20 rounded-full blur-[150px] animate-pulse pointer-events-none" style={{ animationDuration: '12s', animationDelay: '2s' }} />
-      <div className="absolute top-[20%] right-[20%] w-[20%] h-[20%] bg-tertiary-fixed/20 rounded-full blur-[100px] animate-pulse pointer-events-none" style={{ animationDuration: '10s', animationDelay: '1s' }} />
-
-      {/* Login Card */}
-      <div className="relative z-10 w-full max-w-md p-8 md:p-10 mx-4 bg-surface-container-lowest/70 backdrop-blur-xl border border-outline-variant/50 rounded-3xl shadow-[0_8px_32px_0_rgba(0,0,0,0.1)] transition-all duration-300">
-        
-        {/* Header */}
-        <div className="text-center mb-10">
-          <div className="w-16 h-16 mx-auto bg-primary rounded-2xl flex items-center justify-center text-on-primary shadow-lg shadow-primary/30 mb-6 transform hover:scale-105 transition-transform duration-300">
-            <span className="material-symbols-outlined text-3xl">hub</span>
+    <div className="min-h-screen flex items-center justify-center p-4">
+      <div className="w-full max-w-md bg-surface-bright border border-outline-variant rounded-2xl shadow-xl overflow-hidden animate-slide-up">
+        <div className="p-8 text-center bg-surface-container-low border-b border-outline-variant">
+          <div className="w-12 h-12 mx-auto rounded-xl bg-primary flex items-center justify-center text-on-primary mb-4 shadow-md">
+            <span className="material-symbols-outlined text-2xl">hub</span>
           </div>
-          <h1 className="font-headline text-3xl font-bold text-primary mb-2 tracking-tight">SME Orchestrator</h1>
-          <p className="text-on-surface-variant text-sm">Yönetim paneline giriş yapın</p>
+          <h1 className="text-2xl font-bold font-headline text-primary">SME Orchestrator</h1>
+          <p className="text-sm text-on-surface-variant mt-2">Yönetim paneline giriş yapın</p>
         </div>
-
-        {/* Form */}
-        <form onSubmit={handleLogin} className="flex flex-col gap-6">
-          <div className="space-y-1">
-            <label className="text-xs font-semibold tracking-wider uppercase text-on-surface-variant ml-1">
-              E-posta Adresi
-            </label>
-            <div className="relative group">
-              <span className="absolute left-4 top-1/2 -translate-y-1/2 material-symbols-outlined text-outline group-focus-within:text-primary transition-colors">
-                mail
-              </span>
-              <input
-                type="email"
+        
+        <div className="p-8">
+          {error && (
+            <div className="mb-4 p-3 bg-error-container text-on-error-container rounded-lg text-sm flex items-center gap-2">
+              <span className="material-symbols-outlined text-[18px]">error</span>
+              {error}
+            </div>
+          )}
+          
+          <form onSubmit={handleLogin} className="flex flex-col gap-4">
+            <div>
+              <label className="block text-sm font-semibold text-on-surface mb-1">E-posta</label>
+              <input 
+                type="email" 
+                required
                 value={email}
                 onChange={(e) => setEmail(e.target.value)}
-                required
-                className="w-full bg-surface-container-low border border-outline-variant rounded-xl py-3 pl-12 pr-4 text-sm focus:outline-none focus:border-primary focus:ring-1 focus:ring-primary transition-all duration-200"
-                placeholder="admin@sme.com"
+                className="w-full px-4 py-2.5 bg-surface-container-lowest border border-outline-variant rounded-xl focus:border-secondary focus:ring-1 focus:ring-secondary outline-none transition-all"
+                placeholder="ornek@sirket.com"
               />
             </div>
-          </div>
-
-          <div className="space-y-1">
-            <label className="text-xs font-semibold tracking-wider uppercase text-on-surface-variant ml-1">
-              Şifre
-            </label>
-            <div className="relative group">
-              <span className="absolute left-4 top-1/2 -translate-y-1/2 material-symbols-outlined text-outline group-focus-within:text-primary transition-colors">
-                lock
-              </span>
-              <input
-                type="password"
+            
+            <div>
+              <label className="block text-sm font-semibold text-on-surface mb-1">Şifre</label>
+              <input 
+                type="password" 
+                required
                 value={password}
                 onChange={(e) => setPassword(e.target.value)}
-                required
-                className="w-full bg-surface-container-low border border-outline-variant rounded-xl py-3 pl-12 pr-4 text-sm focus:outline-none focus:border-primary focus:ring-1 focus:ring-primary transition-all duration-200"
+                className="w-full px-4 py-2.5 bg-surface-container-lowest border border-outline-variant rounded-xl focus:border-secondary focus:ring-1 focus:ring-secondary outline-none transition-all"
                 placeholder="••••••••"
               />
             </div>
-          </div>
-
-          <button
-            type="submit"
-            disabled={isLoading}
-            className="group relative w-full bg-primary text-on-primary py-3.5 rounded-xl text-sm font-semibold tracking-wider uppercase overflow-hidden shadow-lg shadow-primary/25 hover:shadow-primary/40 transition-all duration-300 active:scale-[0.98] disabled:opacity-70 disabled:cursor-not-allowed mt-2"
-          >
-            {/* Hover Effect */}
-            <div className="absolute inset-0 w-0 bg-white/20 transition-all duration-[400ms] ease-out group-hover:w-full" />
             
-            <span className="relative flex items-center justify-center gap-2">
-              {isLoading ? (
-                <>
-                  <span className="w-5 h-5 border-2 border-on-primary/30 border-t-on-primary rounded-full animate-spin" />
-                  Giriş Yapılıyor...
-                </>
-              ) : (
-                <>
-                  Giriş Yap
-                  <span className="material-symbols-outlined text-[18px] group-hover:translate-x-1 transition-transform">
-                    arrow_forward
-                  </span>
-                </>
-              )}
-            </span>
-          </button>
-        </form>
-
-        {/* Footer */}
-        <div className="mt-8 text-center">
-          <p className="text-xs text-on-surface-variant flex items-center justify-center gap-1">
-            <span className="material-symbols-outlined text-[14px]">admin_panel_settings</span>
-            Sadece yetkili personel erişebilir.
+            <div className="flex justify-between items-center text-sm mt-2">
+              <label className="flex items-center gap-2 cursor-pointer">
+                <input type="checkbox" className="rounded text-primary focus:ring-primary" />
+                <span className="text-on-surface-variant">Beni hatırla</span>
+              </label>
+              <button 
+                type="button"
+                onClick={() => setIsForgotPwdOpen(true)} 
+                className="text-secondary font-semibold hover:underline"
+              >
+                Şifremi unuttum
+              </button>
+            </div>
+            
+            <button 
+              type="submit" 
+              disabled={loading}
+              className="mt-4 w-full py-3 bg-primary text-on-primary rounded-xl font-semibold tracking-wide hover:opacity-90 transition-opacity flex justify-center items-center gap-2 disabled:opacity-70"
+            >
+              {loading ? <span className="w-5 h-5 border-2 border-on-primary border-t-transparent rounded-full animate-spin" /> : "Giriş Yap"}
+            </button>
+          </form>
+          
+          <p className="mt-8 text-center text-sm text-on-surface-variant">
+            Hesabınız yok mu? <Link href="/signup" className="text-primary font-semibold hover:underline">Hemen kayıt olun</Link>
           </p>
         </div>
-
       </div>
+
+      {mounted && typeof document !== "undefined" && createPortal(
+        isForgotPwdOpen && (
+          <div className="fixed inset-0 z-[9999] flex items-center justify-center p-4 bg-black/50 backdrop-blur-sm animate-fade-in">
+            <div className="bg-surface-container-lowest rounded-2xl shadow-xl w-full max-w-sm overflow-hidden animate-slide-up">
+              <div className="p-4 border-b border-outline-variant flex items-center justify-between">
+                <h3 className="font-headline font-semibold text-lg flex items-center gap-2">
+                  <span className="material-symbols-outlined text-secondary">lock_reset</span>
+                  Şifremi Unuttum
+                </h3>
+                <button 
+                  onClick={() => setIsForgotPwdOpen(false)}
+                  className="w-8 h-8 rounded-full hover:bg-surface-container flex items-center justify-center text-on-surface-variant transition-colors"
+                >
+                  <span className="material-symbols-outlined text-[20px]">close</span>
+                </button>
+              </div>
+              <div className="p-5 flex flex-col gap-4">
+                <p className="text-sm text-on-surface-variant">Şifrenizi sıfırlamak için lütfen sistem yöneticisi ile iletişime geçin veya aşağıdaki adrese e-posta gönderin.</p>
+                <div className="bg-surface-container-low p-3 rounded-xl border border-outline-variant flex items-center gap-2 text-sm font-medium">
+                  <span className="material-symbols-outlined text-outline text-[18px]">mail</span>
+                  destek@sme-orchestrator.com
+                </div>
+                <button 
+                  onClick={() => setIsForgotPwdOpen(false)} 
+                  className="w-full mt-2 py-2 bg-secondary text-on-secondary rounded-lg text-sm font-semibold hover:opacity-90 transition-opacity"
+                >
+                  Anladım
+                </button>
+              </div>
+            </div>
+          </div>
+        ),
+        document.body
+      )}
     </div>
   );
 }

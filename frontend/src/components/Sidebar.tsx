@@ -2,10 +2,11 @@
 
 import Link from "next/link";
 import { usePathname } from "next/navigation";
-import { useEffect } from "react";
+import { useState, useEffect } from "react";
+import { createPortal } from "react-dom";
 
 const navItems = [
-  { href: "/", label: "Dashboard", icon: "dashboard" },
+  { href: "/", label: "Ana Sayfa", icon: "dashboard" },
   { href: "/agents", label: "Agents", icon: "smart_toy" },
   { href: "/customers", label: "Müşteriler", icon: "forum" },
   { href: "/inventory", label: "Envanter", icon: "inventory_2" },
@@ -20,6 +21,10 @@ interface SidebarProps {
 
 export default function Sidebar({ mobileOpen = false, onClose }: SidebarProps) {
   const pathname = usePathname();
+  const [isHelpOpen, setIsHelpOpen] = useState(false);
+  const [mounted, setMounted] = useState(false);
+
+  useEffect(() => { setMounted(true); }, []);
 
   // Close mobile sidebar on route change
   useEffect(() => {
@@ -76,20 +81,23 @@ export default function Sidebar({ mobileOpen = false, onClose }: SidebarProps) {
 
       {/* CTA */}
       <div className="mt-auto flex flex-col gap-3">
-        <Link
-          href="#"
-          className="flex items-center gap-3 px-4 py-2 text-on-surface-variant hover:bg-surface-container-high rounded-xl transition-all text-sm"
+        <button
+          onClick={() => setIsHelpOpen(true)}
+          className="w-full flex items-center gap-3 px-4 py-2 text-on-surface-variant hover:bg-surface-container-high rounded-xl transition-all text-sm"
         >
           <span className="material-symbols-outlined text-outline">help</span>
           Yardım
-        </Link>
-        <Link
-          href="/login"
-          className="flex items-center gap-3 px-4 py-2 text-on-surface-variant hover:bg-surface-container-high rounded-xl transition-all text-sm text-error hover:text-error hover:bg-error-container/10"
+        </button>
+        <button
+          onClick={() => {
+            localStorage.removeItem("user");
+            window.location.href = "/login";
+          }}
+          className="w-full flex items-center gap-3 px-4 py-2 text-on-surface-variant hover:bg-surface-container-high rounded-xl transition-all text-sm"
         >
           <span className="material-symbols-outlined text-error">logout</span>
           Çıkış
-        </Link>
+        </button>
       </div>
     </>
   );
@@ -128,6 +136,45 @@ export default function Sidebar({ mobileOpen = false, onClose }: SidebarProps) {
           {sidebarContent}
         </nav>
       </div>
+
+      {/* Help Modal */}
+      {mounted && typeof document !== "undefined" && createPortal(
+        isHelpOpen && (
+          <div className="fixed inset-0 z-[9999] flex items-center justify-center p-4 bg-black/50 backdrop-blur-sm animate-fade-in">
+            <div className="bg-surface-container-lowest rounded-2xl shadow-xl w-full max-w-sm overflow-hidden animate-slide-up">
+              <div className="p-4 border-b border-outline-variant flex items-center justify-between">
+                <h3 className="font-headline font-semibold text-lg flex items-center gap-2">
+                  <span className="material-symbols-outlined text-secondary">help</span>
+                  Yardım ve Destek
+                </h3>
+                <button 
+                  onClick={() => setIsHelpOpen(false)}
+                  className="w-8 h-8 rounded-full hover:bg-surface-container flex items-center justify-center text-on-surface-variant transition-colors"
+                >
+                  <span className="material-symbols-outlined text-[20px]">close</span>
+                </button>
+              </div>
+              <div className="p-5 flex flex-col gap-4">
+                <p className="text-sm text-on-surface-variant">SME Orchestrator sistemini kullanırken desteğe ihtiyacınız olursa bizimle iletişime geçebilirsiniz.</p>
+                <div className="bg-surface-container-low p-3 rounded-xl border border-outline-variant flex flex-col gap-2">
+                  <div className="flex items-center gap-2 text-sm">
+                    <span className="material-symbols-outlined text-outline text-[18px]">mail</span>
+                    <span>destek@sme-orchestrator.com</span>
+                  </div>
+                  <div className="flex items-center gap-2 text-sm">
+                    <span className="material-symbols-outlined text-outline text-[18px]">phone</span>
+                    <span>0850 123 45 67</span>
+                  </div>
+                </div>
+                <button onClick={() => setIsHelpOpen(false)} className="w-full py-2 bg-secondary text-on-secondary rounded-lg text-sm font-semibold hover:opacity-90 transition-opacity">
+                  Kapat
+                </button>
+              </div>
+            </div>
+          </div>
+        ),
+        document.body
+      )}
     </>
   );
 }

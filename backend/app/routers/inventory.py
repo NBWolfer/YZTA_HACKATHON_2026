@@ -1,4 +1,5 @@
-from fastapi import APIRouter, Depends
+from fastapi import APIRouter, Depends, HTTPException
+from pydantic import BaseModel
 from sqlalchemy.orm import Session
 
 from app.database import get_db
@@ -69,4 +70,30 @@ def get_low_stock(db: Session = Depends(get_db)):
             }
             for p in low
         ],
+    }
+
+
+class RestockRequest(BaseModel):
+    amount: int = 50
+
+@router.post("/{product_id}/restock")
+def restock_product(
+    product_id: int,
+    request: RestockRequest,
+    db: Session = Depends(get_db)
+):
+    """Increase stock quantity for a specific product."""
+    product = db.query(Product).filter(Product.id == product_id).first()
+    if not product:
+        raise HTTPException(status_code=404, detail="Ürün bulunamadı")
+    
+    product.stock_quantity += request.amount
+    db.commit()
+    db.refresh(product)
+    
+    return {
+        "success": True,
+        "message": f"{product.name} stoklarına {request.amount} adet eklendi.",
+        "new_stock": product.stock_quantity,
+        "status": product.stock_status.value
     }

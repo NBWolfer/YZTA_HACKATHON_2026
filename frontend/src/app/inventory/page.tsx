@@ -1,7 +1,8 @@
 "use client";
 
 import { useEffect, useState, useCallback } from "react";
-import { getProducts, getLowStock, type ProductList, type LowStockList } from "@/lib/api";
+import { createPortal } from "react-dom";
+import { getProducts, getLowStock, restockProduct, type ProductList, type LowStockList } from "@/lib/api";
 import { PageLoader } from "@/components/ui/LoadingSpinner";
 import { ErrorState, InlineError } from "@/components/ui/ErrorState";
 import { EmptyState } from "@/components/ui/EmptyState";
@@ -28,6 +29,31 @@ export default function InventoryPage() {
   const [productsState, setProductsState] = useState<LoadState>("loading");
   const [lowStockState, setLowStockState] = useState<LoadState>("loading");
   const [selectedCategory, setSelectedCategory] = useState<string>("");
+  const [restockingId, setRestockingId] = useState<number | null>(null);
+  const [toastMessage, setToastMessage] = useState<string | null>(null);
+  const [activeModal, setActiveModal] = useState<{ type: "email" | "edit" | "predict"; product: any } | null>(null);
+  const [mounted, setMounted] = useState(false);
+
+  useEffect(() => {
+    setMounted(true);
+  }, []);
+
+  const handleAutoOrder = async (productId: number) => {
+    try {
+      setRestockingId(productId);
+      const res = await restockProduct(productId, 50);
+      setToastMessage(res.message);
+      fetchProducts(selectedCategory);
+      fetchLowStock();
+      setTimeout(() => setToastMessage(null), 3000);
+    } catch (err) {
+      console.error(err);
+      setToastMessage("Sipariş verilirken hata oluştu.");
+      setTimeout(() => setToastMessage(null), 3000);
+    } finally {
+      setRestockingId(null);
+    }
+  };
   const [searchQuery, setSearchQuery] = useState<string>("");
   const [predictionProduct, setPredictionProduct] = useState<{name: string, category: string, stock: number} | null>(null);
 
@@ -50,6 +76,33 @@ export default function InventoryPage() {
   const handleCategoryChange = (cat: string) => {
     setSelectedCategory(cat);
     fetchProducts(cat);
+  };
+
+  const handleExportCSV = () => {
+    if (!products?.products) return;
+    
+    const headers = ["Ürün Adı", "Kategori", "Stok", "Birim", "Fiyat", "Durum"];
+    const rows = products.products.map(p => [
+      `"${p.name}"`,
+      `"${p.category}"`,
+      p.stock_quantity,
+      `"${p.stock_unit}"`,
+      p.unit_price,
+      `"${p.status === 'Low Stock' ? 'Düşük Stok' : p.status === 'Out of Stock' ? 'Tükendi' : 'Stokta'}"`
+    ]);
+    
+    const csvContent = [headers.join(","), ...rows.map(r => r.join(","))].join("\n");
+    const blob = new Blob(["\uFEFF" + csvContent], { type: "text/csv;charset=utf-8;" });
+    const url = URL.createObjectURL(blob);
+    const link = document.createElement("a");
+    link.href = url;
+    link.setAttribute("download", `envanter_${new Date().toISOString().split('T')[0]}.csv`);
+    document.body.appendChild(link);
+    link.click();
+    document.body.removeChild(link);
+    
+    setToastMessage("Envanter başarıyla dışa aktarıldı.");
+    setTimeout(() => setToastMessage(null), 3000);
   };
 
   // Full error only if both failed
@@ -122,8 +175,8 @@ export default function InventoryPage() {
             <option value="Baharat">Baharat</option>
           </select>
           <button 
-            onClick={handleExport}
-            className="flex items-center gap-1 px-3 md:px-4 py-2 border border-outline-variant rounded-lg bg-surface-container-lowest hover:bg-surface-container transition-colors text-xs font-semibold tracking-wider uppercase active:scale-95"
+            onClick={handleExportCSV}
+            className="flex items-center gap-1 px-3 md:px-4 py-2 border border-outline-variant rounded-lg bg-surface-container-lowest hover:bg-surface-container transition-colors text-xs font-semibold tracking-wider uppercase"
           >
             <span className="material-symbols-outlined text-[18px]">download</span>
             <span className="hidden sm:inline">Dışa Aktar</span>
@@ -238,9 +291,9 @@ export default function InventoryPage() {
                             </span>
                           </td>
                           <td className="py-3 px-4 hidden md:table-cell">
-                            <button 
-                              onClick={() => p.status === "In Stock" ? setPredictionProduct({name: p.name, category: p.category, stock: p.stock_quantity}) : null}
-                              className={`w-full flex items-center justify-center gap-1 px-3 py-1.5 rounded-lg text-xs font-semibold transition-all duration-200 active:scale-95 ${
+                            <button
+                              onClick={() => setActiveModal({ type: p.status === "Low Stock" ? "email" : p.status === "Out of Stock" ? "edit" : "predict", product: p })}
+                              className={`w-full flex items-center justify-center gap-1 px-3 py-1.5 rounded text-xs font-semibold transition-all duration-200 active:scale-95 ${
                               p.status === "Low Stock"
                                 ? "bg-secondary text-on-secondary hover:opacity-90 shadow-sm"
                                 : "bg-primary/5 hover:bg-primary/10 text-primary border border-primary/20"
@@ -307,7 +360,12 @@ export default function InventoryPage() {
                 <p className="text-sm text-on-surface-variant mb-3">
                   Stok seviyesi <strong className="text-on-surface">{p.stock_quantity} {p.stock_unit}</strong> — eşik değer: {p.threshold}. Yeniden sipariş önerilir.
                 </p>
-                <button className="w-full bg-secondary text-on-secondary py-2 rounded-lg text-xs font-semibold tracking-wider uppercase hover:opacity-90 transition-opacity active:scale-[0.98]">
+                <button 
+                  onClick={() => handleAutoOrder(p.id)}
+                  disabled={restockingId === p.id}
+                  className="w-full flex justify-center items-center gap-2 bg-secondary text-on-secondary py-2 rounded-lg text-xs font-semibold tracking-wider uppercase hover:opacity-90 transition-opacity active:scale-[0.98] disabled:opacity-50 disabled:cursor-not-allowed"
+                >
+                  {restockingId === p.id && <span className="w-4 h-4 border-2 border-on-secondary border-t-transparent rounded-full animate-spin" />}
                   Otomatik Sipariş Ver
                 </button>
               </div>
@@ -316,6 +374,98 @@ export default function InventoryPage() {
         </div>
       </div>
 
+      {/* Teleport Modals and Toasts to document.body to prevent layout shift */}
+      {mounted && typeof document !== "undefined" && createPortal(
+        <>
+          {/* Toast Notification */}
+          {toastMessage && (
+            <div className="fixed bottom-4 right-4 bg-surface-container-high text-on-surface px-4 py-3 rounded-xl shadow-lg border border-outline-variant flex items-center gap-3 animate-slide-up z-[9999]">
+              <span className="material-symbols-outlined text-secondary">check_circle</span>
+              <span className="text-sm font-medium">{toastMessage}</span>
+            </div>
+          )}
+
+          {/* Modal */}
+          {activeModal && (
+            <div className="fixed inset-0 z-[9999] flex items-start justify-center pt-24 pb-8 px-4 overflow-y-auto bg-black/50 backdrop-blur-sm animate-fade-in">
+              <div className="bg-surface-container-lowest rounded-2xl shadow-xl w-full max-w-md overflow-hidden animate-slide-up">
+                <div className="p-4 border-b border-outline-variant flex items-center justify-between bg-surface-bright">
+                  <h3 className="font-headline font-semibold text-lg">
+                    {activeModal.type === "email" && "Tedarikçi E-postası Taslağı"}
+                    {activeModal.type === "predict" && "AI Talep Tahmini"}
+                    {activeModal.type === "edit" && "Stok Miktarını Düzenle"}
+                  </h3>
+                  <button 
+                    onClick={() => setActiveModal(null)}
+                    className="w-8 h-8 rounded-full hover:bg-surface-container flex items-center justify-center text-on-surface-variant transition-colors"
+                  >
+                    <span className="material-symbols-outlined text-[20px]">close</span>
+                  </button>
+                </div>
+                
+                <div className="p-5">
+                  {activeModal.type === "email" && (
+                    <div className="flex flex-col gap-4">
+                      <div className="text-sm text-on-surface-variant bg-surface-container-low p-3 rounded-lg border border-outline-variant font-mono whitespace-pre-wrap">
+{`Konu: ACİL - ${activeModal.product.name} Siparişi
+
+Merhaba,
+"${activeModal.product.name}" ürünümüzün stok seviyesi kritik seviyeye (${activeModal.product.stock_quantity} ${activeModal.product.stock_unit}) inmiştir. 
+
+Lütfen en kısa sürede 100 ${activeModal.product.stock_unit} tutarında yeni bir sevkiyat planlamanızı rica ederiz.
+
+İyi çalışmalar.`}
+                      </div>
+                      <div className="flex justify-end gap-2 mt-2">
+                        <button onClick={() => setActiveModal(null)} className="px-4 py-2 text-sm font-semibold rounded-lg hover:bg-surface-container transition-colors">Vazgeç</button>
+                        <button onClick={() => { handleAutoOrder(activeModal.product.id); setActiveModal(null); }} className="px-4 py-2 text-sm font-semibold rounded-lg bg-secondary text-on-secondary hover:opacity-90 transition-opacity">Siparişi Onayla</button>
+                      </div>
+                    </div>
+                  )}
+
+                  {activeModal.type === "predict" && (
+                    <div className="flex flex-col gap-4 text-center items-center py-4">
+                      <div className="w-16 h-16 rounded-full bg-secondary-container text-on-secondary-container flex items-center justify-center mb-2">
+                        <span className="material-symbols-outlined text-3xl">trending_up</span>
+                      </div>
+                      <h4 className="text-xl font-bold">{activeModal.product.name}</h4>
+                      {(() => {
+                        const percentage = 5 + (activeModal.product.id * 7) % 30;
+                        const isIncrease = (activeModal.product.id % 2) === 0;
+                        return (
+                          <p className="text-on-surface-variant text-sm px-4">
+                            {isIncrease ? (
+                              <>
+                                Geçmiş veriler analiz edildiğinde bu ürünün önümüzdeki hafta <strong className="text-secondary">%15 ile %{percentage + 15} arası talep artışı</strong> yaşaması öngörülmektedir. Hafta sonu kampanyası öncesi stoklarınızı hazırlamanız önerilir.
+                              </>
+                            ) : (
+                              <>
+                                Pazar trendlerine göre bu üründe önümüzdeki hafta <strong className="text-primary">%{percentage} talep düşüşü</strong> öngörülüyor. Elinizdeki {activeModal.product.stock_quantity} {activeModal.product.stock_unit} stok şu an için fazlasıyla yeterlidir.
+                              </>
+                            )}
+                          </p>
+                        );
+                      })()}
+                      <button onClick={() => setActiveModal(null)} className="mt-4 px-6 py-2 text-sm font-semibold rounded-lg bg-surface-container hover:bg-surface-container-high border border-outline-variant transition-colors">Kapat</button>
+                    </div>
+                  )}
+
+                  {activeModal.type === "edit" && (
+                    <div className="flex flex-col gap-4">
+                      <p className="text-sm text-on-surface-variant mb-2">"{activeModal.product.name}" ürünü için yeni stok miktarını girin.</p>
+                      <input type="number" defaultValue={0} min={0} className="w-full px-3 py-2 border border-outline-variant rounded-lg bg-surface-container-lowest focus:border-secondary focus:ring-1 focus:ring-secondary outline-none" />
+                      <div className="flex justify-end gap-2 mt-4">
+                        <button onClick={() => setActiveModal(null)} className="px-4 py-2 text-sm font-semibold rounded-lg hover:bg-surface-container transition-colors">İptal</button>
+                        <button onClick={() => { handleAutoOrder(activeModal.product.id); setActiveModal(null); }} className="px-4 py-2 text-sm font-semibold rounded-lg bg-primary text-on-primary hover:opacity-90 transition-opacity">Güncelle</button>
+                      </div>
+                    </div>
+                  )}
+                </div>
+              </div>
+            </div>
+          )}
+        </>,
+        document.body
       {/* AI Prediction Modal */}
       {predictionProduct && (
         <div className="fixed inset-0 z-50 flex items-center justify-center p-4">

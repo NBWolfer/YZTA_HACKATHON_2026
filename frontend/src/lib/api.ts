@@ -7,9 +7,26 @@ export async function fetchAPI<T>(path: string, options?: RequestInit): Promise<
     headers: { "Content-Type": "application/json" },
     ...options,
   });
-  if (!res.ok) throw new Error(`API error: ${res.status}`);
+  if (!res.ok) {
+    let errorMsg = `API error: ${res.status}`;
+    try {
+      const data = await res.json();
+      if (data.detail) errorMsg = data.detail;
+    } catch (e) {}
+    throw new Error(errorMsg);
+  }
   return res.json();
 }
+// ── Auth ──
+export const login = (data: any) => fetchAPI<{success: boolean, user: any}>("/api/auth/login", {
+  method: "POST",
+  body: JSON.stringify(data),
+});
+
+export const signup = (data: any) => fetchAPI<{success: boolean, user: any}>("/api/auth/signup", {
+  method: "POST",
+  body: JSON.stringify(data),
+});
 
 // ── Dashboard ──
 export const getDashboardSummary = () => fetchAPI<DashboardSummary>("/api/dashboard/summary");
@@ -20,6 +37,11 @@ export const getProducts = (category?: string) =>
   fetchAPI<ProductList>(`/api/inventory/products${category ? `?category=${category}` : ""}`);
 export const getLowStock = () => fetchAPI<LowStockList>("/api/inventory/low-stock");
 export const getCategories = () => fetchAPI<{ categories: string[] }>("/api/inventory/categories");
+export const restockProduct = (productId: number, amount: number = 50) => 
+  fetchAPI<{success: boolean, message: string, new_stock: number}>(`/api/inventory/${productId}/restock`, {
+    method: "POST",
+    body: JSON.stringify({ amount }),
+  });
 
 // ── Orders ──
 export const getOrders = (status?: string) =>

@@ -23,6 +23,16 @@ export default function DashboardPage() {
   const [activities, setActivities] = useState<RecentActivities | null>(null);
   const [summaryState, setSummaryState] = useState<LoadState>("loading");
   const [activitiesState, setActivitiesState] = useState<LoadState>("loading");
+  const [userName, setUserName] = useState("Yönetici");
+
+  useEffect(() => {
+    const userStr = localStorage.getItem("user");
+    if (userStr) {
+      try {
+        setUserName(JSON.parse(userStr).name);
+      } catch (e) {}
+    }
+  }, []);
 
   const fetchSummary = useCallback(() => {
     setSummaryState("loading");
@@ -57,7 +67,7 @@ export default function DashboardPage() {
       <div className="flex flex-col md:flex-row md:items-end justify-between gap-2">
         <div>
           <h2 className="font-headline text-2xl md:text-3xl font-bold text-primary tracking-tight">
-            Güzel sabahlar, Ali Bey!
+            Güzel sabahlar, {userName}!
           </h2>
           <p className="text-on-surface-variant mt-1 text-sm md:text-base">
             İşleriniz bugün nasıl gidiyor? İşte sabah özetiniz.
@@ -144,9 +154,6 @@ export default function DashboardPage() {
               <div className="flex-1">
                 <p className="text-sm">
                   Tedarikçi için <strong className="text-primary">Zeytinyağı</strong> yeniden sipariş e-postası taslağı oluşturuluyor...
-                </p>
-                <p className="text-xs font-semibold text-secondary mt-1 cursor-pointer hover:underline">
-                  Taslağı Görüntüle
                 </p>
               </div>
             </div>
@@ -293,9 +300,6 @@ function AIFeedItem({
         <p className="text-sm">{title}</p>
         <p className="text-xs text-on-surface-variant mt-1 font-semibold tracking-wider uppercase">{subtitle}</p>
       </div>
-      <button className="opacity-0 group-hover:opacity-100 px-3 py-1 bg-surface text-on-surface border border-outline rounded text-xs font-semibold transition-all duration-200 shrink-0 hover:bg-surface-container-high active:scale-95">
-        {action}
-      </button>
     </div>
   );
 }

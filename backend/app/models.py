@@ -106,3 +106,13 @@ class CargoTracking(Base):
     last_update = Column(DateTime, default=datetime.utcnow)
 
     order = relationship("Order", back_populates="cargo")
+
+
+class User(Base):
+    __tablename__ = "users"
+
+    id = Column(Integer, primary_key=True, index=True)
+    name = Column(String, nullable=False)
+    email = Column(String, nullable=False, unique=True, index=True)
+    password = Column(String, nullable=False)  # Basit tutmak için düz metin şifre kullanacağız (Hackathon)
+    created_at = Column(DateTime, default=datetime.utcnow)
