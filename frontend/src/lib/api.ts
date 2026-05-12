@@ -1,12 +1,26 @@
 // ───── API Config ─────
-// ✅ CORRECT: Use the environment variable name from .env.local
-const API_URL = process.env.BACKEND_URL || "http://localhost:8000";
+// Next.js requires NEXT_PUBLIC_ prefix for client-side env vars
+const API_URL = process.env.NEXT_PUBLIC_BACKEND_URL || "http://localhost:8000";
+
+// Simple in-memory cache for GET requests
+const apiCache = new Map<string, { data: any, timestamp: number }>();
+const CACHE_TTL = 15000; // 15 seconds
 
 export async function fetchAPI<T>(path: string, options?: RequestInit): Promise<T> {
+  const isGet = !options || !options.method || options.method.toUpperCase() === "GET";
+  
+  if (isGet) {
+    const cached = apiCache.get(path);
+    if (cached && Date.now() - cached.timestamp < CACHE_TTL) {
+      return cached.data;
+    }
+  }
+
   const res = await fetch(`${API_URL}${path}`, {
     headers: { "Content-Type": "application/json" },
     ...options,
   });
+  
   if (!res.ok) {
     let errorMsg = `API error: ${res.status}`;
     try {
@@ -15,8 +29,14 @@ export async function fetchAPI<T>(path: string, options?: RequestInit): Promise<
     } catch (e) {}
     throw new Error(errorMsg);
   }
-  return res.json();
+  
+  const data = await res.json();
+  if (isGet) {
+    apiCache.set(path, { data, timestamp: Date.now() });
+  }
+  return data;
 }
+
 // ── Auth ──
 export const login = (data: any) => fetchAPI<{success: boolean, user: any}>("/api/auth/login", {
   method: "POST",
@@ -42,6 +62,33 @@ export const restockProduct = (productId: number, amount: number = 50) =>
     method: "POST",
     body: JSON.stringify({ amount }),
   });
+
+export const createProduct = (data: { name: string, category: string, unit_price: number, stock_quantity: number, stock_unit: string, low_stock_threshold: number }) =>
+  fetchAPI<{success: boolean, message: string, product_id: number}>("/api/inventory/products", {
+    method: "POST",
+    body: JSON.stringify(data),
+  });
+
+export const importProductsCSV = async (file: File): Promise<{success: boolean, message: string}> => {
+  const formData = new FormData();
+  formData.append("file", file);
+  
+  const res = await fetch(`${API_URL}/api/inventory/products/import`, {
+    method: "POST",
+    body: formData,
+  });
+  
+  if (!res.ok) {
+    let errStr = "HTTP Hata " + res.status;
+    try {
+      const errJson = await res.json();
+      errStr = errJson.detail || errStr;
+    } catch { }
+    throw new Error(errStr);
+  }
+  
+  return res.json();
+};
 
 // ── Orders ──
 export const getOrders = (status?: string) =>
@@ -74,6 +121,48 @@ export const sendWhatsAppMessage = async (number: string, message: string) => {
 };
 
 export const getWhatsAppHistory = () => fetchAPI<{ conversations: Record<string, ChatMessage[]> }>("/api/chat/whatsapp/history");
+
+// ── Agent Logs ──
+export interface AgentLogEntry {
+  time: string;
+  agent: string;
+  message: string;
+  level?: "info" | "warn" | "error";
+}
+export const getAgentLogs = (since: number = 0) =>
+  fetchAPI<{ logs: AgentLogEntry[]; next_index: number }>(`/api/agents/logs?since=${since}`);
+
+// ── Predictions ──
+export interface PredictionResult {
+  product: {
+    id: number;
+    name: string;
+    category: string;
+    stock_quantity: number;
+    stock_unit: string;
+    unit_price: number;
+  };
+  analysis: {
+    total_sold_90d: number;
+    daily_velocity: number;
+    trend_direction: "up" | "down" | "stable";
+    trend_percent: number;
+    last_7_days_total: number;
+    prev_7_days_total: number;
+  };
+  forecast: {
+    daily: number[];
+    weekly_total: number;
+    days_until_stockout: number | null;
+  };
+  insight: string;
+  reorder: {
+    suggested_quantity: number;
+    estimated_cost: number;
+  };
+}
+export const getPrediction = (productId: number) =>
+  fetchAPI<PredictionResult>(`/api/inventory/predict/${productId}`);
 
 // ── Types ──
 export interface DashboardSummary {

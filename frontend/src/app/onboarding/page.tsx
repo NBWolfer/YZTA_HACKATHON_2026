@@ -1,14 +1,18 @@
 "use client";
 
-import { useState, useEffect } from "react";
+import { useState, useEffect, useRef, useCallback } from "react";
 import { useRouter } from "next/navigation";
-import Link from "next/link";
+import QRCode from "qrcode";
+
+const WA_BOT_URL = "http://localhost:3001";
 
 export default function OnboardingPage() {
   const [step, setStep] = useState(1);
   const [user, setUser] = useState<{name: string, email: string} | null>(null);
   const [connecting, setConnecting] = useState<string | null>(null);
   const [connected, setConnected] = useState<string[]>([]);
+  const [waQR, setWaQR] = useState<string | null>(null);
+  const [waStatus, setWaStatus] = useState<"idle" | "scanning" | "authenticated" | "error">("idle");
   const router = useRouter();
 
   useEffect(() => {
@@ -20,14 +24,59 @@ export default function OnboardingPage() {
     }
   }, [router]);
 
-  const handleConnect = (platform: string) => {
-    setConnecting(platform);
-    setTimeout(() => {
-      setConnecting(null);
-      if (!connected.includes(platform)) {
-        setConnected([...connected, platform]);
+  // Poll WhatsApp bot for QR / status when connecting
+  useEffect(() => {
+    if (connecting !== "whatsapp") return;
+
+    let cancelled = false;
+
+    const poll = async () => {
+      try {
+        const res = await fetch(`${WA_BOT_URL}/api/qr`);
+        if (!res.ok) throw new Error("Bot unreachable");
+        const data = await res.json();
+
+        if (cancelled) return;
+
+        if (data.authenticated || data.ready) {
+          setWaStatus("authenticated");
+          setConnecting(null);
+          if (!connected.includes("whatsapp")) {
+            setConnected((prev) => [...prev, "whatsapp"]);
+          }
+          setWaQR(null);
+          return; // Stop polling
+        }
+
+        if (data.qr) {
+          setWaQR(data.qr);
+          setWaStatus("scanning");
+        }
+      } catch {
+        if (!cancelled) setWaStatus("error");
       }
-    }, 1500);
+    };
+
+    poll();
+    const interval = setInterval(poll, 2500);
+    return () => { cancelled = true; clearInterval(interval); };
+  }, [connecting, connected]);
+
+  const handleConnect = (platform: string) => {
+    if (platform === "whatsapp") {
+      setConnecting("whatsapp");
+      setWaStatus("idle");
+      setWaQR(null);
+    } else {
+      // Other integrations: simulate connection
+      setConnecting(platform);
+      setTimeout(() => {
+        setConnecting(null);
+        if (!connected.includes(platform)) {
+          setConnected([...connected, platform]);
+        }
+      }, 1500);
+    }
   };
 
   const nextStep = () => {
@@ -91,13 +140,13 @@ export default function OnboardingPage() {
               </p>
               
               <div className="flex flex-col gap-3 mb-6 flex-1 overflow-y-auto pr-2">
-                <IntegrationCard 
-                  id="whatsapp"
-                  icon="forum"
-                  color="bg-[#25D366] text-white"
-                  title="WhatsApp Business"
-                  desc="Müşteri mesajlarını otomatik yanıtlamak için."
-                  connected={connected} connecting={connecting} onConnect={handleConnect}
+                {/* WhatsApp card with QR code support */}
+                <WhatsAppIntegrationCard 
+                  connected={connected}
+                  connecting={connecting}
+                  onConnect={handleConnect}
+                  qrCode={waQR}
+                  status={waStatus}
                 />
                 <IntegrationCard 
                   id="cargo"
@@ -222,6 +271,100 @@ function StepIndicator({ current, number, title, desc }: { current: number, numb
         <h3 className={`text-sm font-bold ${isCurrent ? "text-primary" : "text-on-surface"}`}>{title}</h3>
         <p className="text-xs text-on-surface-variant mt-0.5">{desc}</p>
       </div>
+    </div>
+  );
+}
+
+/** WhatsApp integration card with QR code rendering */
+function WhatsAppIntegrationCard({ 
+  connected, connecting, onConnect, qrCode, status
+}: { 
+  connected: string[], connecting: string | null, onConnect: (id: string) => void,
+  qrCode: string | null, status: "idle" | "scanning" | "authenticated" | "error"
+}) {
+  const isConnected = connected.includes("whatsapp");
+  const isConnecting = connecting === "whatsapp";
+  const [qrImageUrl, setQrImageUrl] = useState<string | null>(null);
+
+  // Render QR code to data URL using local qrcode package
+  useEffect(() => {
+    if (!qrCode) { setQrImageUrl(null); return; }
+    QRCode.toDataURL(qrCode, { width: 200, margin: 1, color: { dark: '#000000', light: '#ffffff' } })
+      .then((url: string) => setQrImageUrl(url))
+      .catch(() => setQrImageUrl(null));
+  }, [qrCode]);
+
+  return (
+    <div className={`border rounded-xl transition-colors duration-300 ${
+      isConnected ? "bg-secondary-container/20 border-secondary" : "bg-surface-container-lowest border-outline-variant"
+    }`}>
+      {/* Header row */}
+      <div className="p-3 flex items-center gap-3">
+        <div className="w-10 h-10 rounded-lg flex items-center justify-center shrink-0 bg-[#25D366] text-white">
+          <span className="material-symbols-outlined">forum</span>
+        </div>
+        <div className="flex-1 min-w-0">
+          <h4 className="font-semibold text-sm truncate">WhatsApp Business</h4>
+          <p className="text-[11px] text-on-surface-variant leading-tight mt-0.5">Müşteri mesajlarını otomatik yanıtlamak için.</p>
+        </div>
+        <button 
+          onClick={() => !isConnected && !isConnecting && onConnect("whatsapp")}
+          disabled={isConnected || isConnecting}
+          className={`px-3 py-1.5 rounded-lg text-xs font-semibold shrink-0 transition-all ${
+            isConnected ? "bg-transparent text-secondary flex items-center gap-1" :
+            isConnecting ? "bg-surface-container-high text-on-surface opacity-70" :
+            "bg-surface-container text-on-surface hover:bg-surface-container-high"
+          }`}
+        >
+          {isConnected ? (
+            <><span className="material-symbols-outlined text-[14px]">check_circle</span> Bağlı</>
+          ) : isConnecting ? (
+            <span className="w-4 h-4 border-2 border-on-surface border-t-transparent rounded-full animate-spin block"></span>
+          ) : (
+            "Bağla"
+          )}
+        </button>
+      </div>
+
+      {/* QR Code panel — shown when connecting */}
+      {isConnecting && (
+        <div className="px-3 pb-3 animate-fade-in">
+          <div className="bg-surface-container-low border border-outline-variant rounded-lg p-4 flex flex-col items-center gap-3">
+            {status === "error" ? (
+              <div className="text-center py-4">
+                <span className="material-symbols-outlined text-3xl text-error mb-2">error</span>
+                <p className="text-sm text-error font-semibold">WhatsApp Bot'a bağlanılamıyor</p>
+                <p className="text-xs text-on-surface-variant mt-1">
+                  Bot servisinin <code className="bg-surface-container px-1 rounded">localhost:3001</code> adresinde çalıştığından emin olun.
+                </p>
+                <button 
+                  onClick={() => onConnect("whatsapp")}
+                  className="mt-3 px-4 py-1.5 bg-surface-container border border-outline-variant rounded-lg text-xs font-semibold hover:bg-surface-container-high transition-colors"
+                >
+                  Tekrar Dene
+                </button>
+              </div>
+            ) : qrCode && qrImageUrl ? (
+              <>
+                <p className="text-xs text-on-surface-variant font-semibold text-center">
+                  WhatsApp uygulamanızdan bu QR kodu tarayın
+                </p>
+                <div className="bg-white p-2 rounded-lg shadow-sm">
+                  <img src={qrImageUrl} alt="WhatsApp QR Code" width={200} height={200} className="block" />
+                </div>
+                <p className="text-[11px] text-outline text-center">
+                  WhatsApp → Ayarlar → Bağlı Cihazlar → Cihaz Bağla
+                </p>
+              </>
+            ) : (
+              <div className="py-4 flex flex-col items-center gap-2">
+                <span className="w-6 h-6 border-2 border-outline-variant border-t-secondary rounded-full animate-spin block"></span>
+                <p className="text-xs text-on-surface-variant">Bot'a bağlanılıyor...</p>
+              </div>
+            )}
+          </div>
+        </div>
+      )}
     </div>
   );
 }

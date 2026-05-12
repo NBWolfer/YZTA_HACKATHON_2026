@@ -1,7 +1,10 @@
 "use client";
 
-import { useState } from "react";
+import { useState, useEffect, useCallback } from "react";
+import { getOrders, type OrderList } from "@/lib/api";
 import { EmptyState } from "@/components/ui/EmptyState";
+import { InlineError } from "@/components/ui/ErrorState";
+import { PageLoader } from "@/components/ui/LoadingSpinner";
 
 // Mock data for procurement orders
 const procurementOrders = [
@@ -16,6 +19,10 @@ export default function OrdersPage() {
   const [crisisResolved, setCrisisResolved] = useState(false);
   const [activeTab, setActiveTab] = useState<"b2c" | "b2b">("b2b");
 
+  // B2C real data
+  const [b2cOrders, setB2cOrders] = useState<OrderList | null>(null);
+  const [b2cState, setB2cState] = useState<"idle" | "loading" | "loaded" | "error">("idle");
+
   const handleSendDraft = () => {
     setIsSending(true);
     // Simulate API delay
@@ -24,6 +31,28 @@ export default function OrdersPage() {
       setIsModalOpen(false);
       setCrisisResolved(true);
     }, 1500);
+  };
+
+  // Fetch B2C orders when tab is activated
+  const fetchB2cOrders = useCallback(() => {
+    setB2cState("loading");
+    getOrders()
+      .then((data) => { setB2cOrders(data); setB2cState("loaded"); })
+      .catch(() => setB2cState("error"));
+  }, []);
+
+  useEffect(() => {
+    if (activeTab === "b2c" && b2cState === "idle") {
+      fetchB2cOrders();
+    }
+  }, [activeTab, b2cState, fetchB2cOrders]);
+
+  const statusColors: Record<string, string> = {
+    "Hazırlanıyor": "bg-surface-container-high text-on-surface-variant",
+    "Kargoya Verildi": "bg-secondary-container text-on-secondary-container",
+    "Yolda": "bg-secondary-container text-on-secondary-container",
+    "Teslim Edildi": "bg-[#D1FAE5] text-[#065F46]",
+    "İptal": "bg-error-container text-on-error-container",
   };
 
   return (
@@ -188,13 +217,75 @@ export default function OrdersPage() {
           </div>
         </div>
       ) : (
-        /* B2C Mockup */
-        <div className="bg-surface-container-lowest border border-outline-variant rounded-2xl p-8 micro-shadow text-center min-h-[400px] flex items-center justify-center">
-          <EmptyState
-            icon="shopping_bag"
-            title="Müşteri Siparişleri"
-            description="Müşteri sipariş akışı yakında bu sekmeye entegre edilecektir."
-          />
+        /* B2C — Real orders from backend */
+        <div className="bg-surface-container-lowest border border-outline-variant rounded-2xl overflow-hidden micro-shadow animate-slide-up">
+          <div className="p-5 border-b border-outline-variant flex justify-between items-center bg-surface-bright">
+            <h3 className="font-headline font-semibold text-primary">Müşteri Siparişleri (B2C)</h3>
+            <span className="text-xs text-on-surface-variant font-mono">
+              {b2cState === "loaded" ? `${b2cOrders?.total ?? 0} sipariş` : ""}
+            </span>
+          </div>
+
+          {b2cState === "loading" ? (
+            <PageLoader message="Siparişler yükleniyor..." />
+          ) : b2cState === "error" ? (
+            <div className="p-4">
+              <InlineError message="Siparişler yüklenemedi." onRetry={fetchB2cOrders} />
+            </div>
+          ) : !b2cOrders?.orders?.length ? (
+            <div className="p-8">
+              <EmptyState
+                icon="shopping_bag"
+                title="Henüz sipariş yok"
+                description="Müşteri siparişleri oluşturulduğunda burada görünecek."
+              />
+            </div>
+          ) : (
+            <div className="overflow-x-auto">
+              <table className="w-full text-left border-collapse min-w-[700px]">
+                <thead>
+                  <tr className="bg-surface-container-low text-xs font-semibold tracking-wider uppercase text-on-surface-variant border-b border-outline-variant">
+                    <th className="py-4 px-6">Sipariş No</th>
+                    <th className="py-4 px-6">Müşteri</th>
+                    <th className="py-4 px-6">Ürünler</th>
+                    <th className="py-4 px-6 text-right">Tutar</th>
+                    <th className="py-4 px-6 text-center">Durum</th>
+                    <th className="py-4 px-6">Kargo</th>
+                  </tr>
+                </thead>
+                <tbody className="text-sm divide-y divide-outline-variant">
+                  {b2cOrders.orders.map((order) => (
+                    <tr key={order.id} className="hover:bg-surface-container transition-colors group">
+                      <td className="py-4 px-6 font-mono text-primary font-medium">#{order.id}</td>
+                      <td className="py-4 px-6">
+                        <div className="font-semibold">{order.customer.name}</div>
+                        <div className="text-xs text-on-surface-variant">{order.customer.city}</div>
+                      </td>
+                      <td className="py-4 px-6 text-on-surface-variant max-w-[200px] truncate">
+                        {order.items.map(i => `${i.product} (x${i.quantity})`).join(", ")}
+                      </td>
+                      <td className="py-4 px-6 text-right font-mono">₺{order.total_amount.toLocaleString("tr-TR")}</td>
+                      <td className="py-4 px-6 text-center">
+                        <span className={`inline-flex items-center gap-1 px-2.5 py-1 rounded-md text-xs font-semibold ${statusColors[order.status] ?? "bg-surface-variant text-on-surface-variant"}`}>
+                          {order.status}
+                        </span>
+                      </td>
+                      <td className="py-4 px-6 text-xs text-on-surface-variant">
+                        {order.cargo ? (
+                          <div>
+                            <div className="font-semibold text-on-surface">{order.cargo.provider}</div>
+                            <div className="font-mono">{order.cargo.tracking_number}</div>
+                          </div>
+                        ) : (
+                          <span className="text-outline">—</span>
+                        )}
+                      </td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+          )}
         </div>
       )}
 

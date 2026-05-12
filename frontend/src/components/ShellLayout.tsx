@@ -15,17 +15,7 @@ export default function ShellLayout({ children }: { children: React.ReactNode })
 
   const openSidebar = useCallback(() => setSidebarOpen(true), []);
   const closeSidebar = useCallback(() => setSidebarOpen(false), []);
-  const pathname = usePathname();
 
-  const isAuthPage = pathname === "/login";
-
-  if (isAuthPage) {
-    return (
-      <main className="flex-1 overflow-y-auto bg-background min-h-screen">
-        {children}
-      </main>
-    );
-  }
 
   useEffect(() => {
     // Simple auth check

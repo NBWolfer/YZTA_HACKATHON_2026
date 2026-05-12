@@ -5,14 +5,21 @@ import { getDashboardSummary, type DashboardSummary } from "@/lib/api";
 import { useAppContext, type AgentLog } from "@/lib/AppContext";
 
 export default function AgentsPage() {
-  const { systemUptime, logs } = useAppContext();
+  const { logs } = useAppContext();
+  const [systemUptime, setSystemUptime] = useState(0);
+
+  // System Uptime Timer
+  useEffect(() => {
+    const t = setInterval(() => setSystemUptime((u) => u + 1), 1000);
+    return () => clearInterval(t);
+  }, []);
   const [summary, setSummary] = useState<DashboardSummary | null>(null);
   const [healthOk, setHealthOk] = useState<boolean | null>(null);
 
   // Check backend health
   const checkHealth = useCallback(async () => {
     try {
-      const res = await fetch(`${process.env.BACKEND_URL || "http://localhost:8000"}/health`);
+      const res = await fetch(`${process.env.NEXT_PUBLIC_BACKEND_URL || "http://localhost:8000"}/health`);
       setHealthOk(res.ok);
     } catch {
       setHealthOk(false);

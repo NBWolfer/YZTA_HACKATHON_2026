@@ -18,6 +18,7 @@ export default function CustomersPage() {
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [showTools, setShowTools] = useState(false);
+  const [activeChatId, setActiveChatId] = useState<string>("ai");
   const messagesEndRef = useRef<HTMLDivElement>(null);
 
   // WhatsApp Integration State (local UI state only)
@@ -78,6 +79,26 @@ export default function CustomersPage() {
     }
   };
 
+  const handleSendDynamic = async () => {
+    if (activeChatId === "ai") {
+      handleSend();
+    } else {
+      if (!input.trim() || loading) return;
+      setLoading(true);
+      setError(null);
+      try {
+        await sendWhatsAppMessage(activeChatId, input.trim());
+        setInput("");
+      } catch (err) {
+        setError("WhatsApp mesajı gönderilemedi.");
+      } finally {
+        setLoading(false);
+      }
+    }
+  };
+
+  const currentMessages = activeChatId === "ai" ? messages : (waHistory[activeChatId] || []);
+
   return (
     <div className="h-full flex gap-4 lg:gap-6 max-w-[1400px] mx-auto animate-fade-in">
       {/* Chat List (left) — hidden on mobile */}
@@ -90,8 +111,12 @@ export default function CustomersPage() {
         </div>
         <div className="flex-1 overflow-y-auto">
           {/* Active conversation indicator */}
-          <div className="p-4 border-b border-outline-variant bg-surface-container hover:bg-surface-container-high transition-colors cursor-pointer flex gap-3 relative">
-            <div className="absolute left-0 top-0 bottom-0 w-1 bg-secondary" />
+          <div 
+            onClick={() => setActiveChatId("ai")}
+            className={`p-4 border-b border-outline-variant transition-colors cursor-pointer flex gap-3 relative ${
+              activeChatId === "ai" ? "bg-surface-container" : "bg-surface-container-lowest hover:bg-surface-container"
+            }`}>
+            {activeChatId === "ai" && <div className="absolute left-0 top-0 bottom-0 w-1 bg-secondary" />}
             <div className="w-12 h-12 rounded-full bg-secondary-container flex items-center justify-center text-on-secondary-container font-semibold shrink-0">
               AI
             </div>
@@ -125,9 +150,16 @@ export default function CustomersPage() {
           {/* Incoming WhatsApp Conversations */}
           {Object.entries(waHistory).map(([phone, msgs]) => {
             const lastMsg = msgs[msgs.length - 1];
+            const isActive = activeChatId === phone;
             return (
-              <div key={phone} className="p-4 border-b border-outline-variant bg-surface-container-lowest hover:bg-surface-container transition-colors flex gap-3">
-                <div className="w-10 h-10 rounded-full bg-surface-container-high flex items-center justify-center text-on-surface-variant font-semibold shrink-0">
+              <div 
+                key={phone} 
+                onClick={() => setActiveChatId(phone)}
+                className={`p-4 border-b border-outline-variant transition-colors cursor-pointer flex gap-3 relative ${
+                  isActive ? "bg-surface-container" : "bg-surface-container-lowest hover:bg-surface-container"
+                }`}>
+                {isActive && <div className="absolute left-0 top-0 bottom-0 w-1 bg-[#25D366]" />}
+                <div className="w-10 h-10 rounded-full bg-surface-container-high flex items-center justify-center text-[#25D366] font-semibold shrink-0">
                   <span className="material-symbols-outlined text-sm">person</span>
                 </div>
                 <div className="flex-1 min-w-0">
@@ -135,7 +167,7 @@ export default function CustomersPage() {
                     <h4 className="font-semibold text-on-surface text-sm truncate">{phone}</h4>
                   </div>
                   <p className="text-xs text-on-surface-variant truncate">
-                    {lastMsg?.role === "assistant" ? "AI: " : ""}{lastMsg?.content}
+                    {lastMsg?.role === "assistant" ? "Siz: " : ""}{lastMsg?.content}
                   </p>
                 </div>
               </div>
@@ -149,90 +181,108 @@ export default function CustomersPage() {
       <section className="flex-1 flex flex-col bg-surface-container-lowest border border-outline-variant rounded-xl overflow-hidden shadow-sm min-w-0">
         {/* Chat Header */}
         <div className="p-3 md:p-4 border-b border-outline-variant bg-surface-bright flex justify-between items-center">
-          <div className="flex items-center gap-3">
-            <div className="w-10 h-10 rounded-full bg-secondary-container flex items-center justify-center text-on-secondary-container">
-              <span className="material-symbols-outlined fill-icon">smart_toy</span>
+          {activeChatId === "ai" ? (
+            <>
+              <div className="flex items-center gap-3">
+                <div className="w-10 h-10 rounded-full bg-secondary-container flex items-center justify-center text-on-secondary-container">
+                  <span className="material-symbols-outlined fill-icon">smart_toy</span>
+                </div>
+                <div>
+                  <h3 className="font-headline font-semibold">Müşteri İletişim Merkezi</h3>
+                  <p className="text-xs text-secondary flex items-center gap-1">
+                    <span className="material-symbols-outlined text-[14px]">smart_toy</span>
+                    {provider === "ollama" ? "Gemma 4 ile çalışıyor" : "Groq ile çalışıyor"}
+                  </p>
+                </div>
+              </div>
+              <div className="flex items-center gap-2">
+                {/* AI Provider Toggle */}
+                <div className="hidden md:flex bg-surface-container-high rounded-lg p-1">
+                  <button
+                    onClick={() => setProvider("ollama")}
+                    className={`px-3 py-1 text-xs font-semibold rounded-md transition-colors ${provider === "ollama" ? "bg-surface-container-lowest text-primary shadow-sm" : "text-on-surface-variant hover:text-on-surface"}`}
+                  >
+                    Local (Ollama)
+                  </button>
+                  <button
+                    onClick={() => setProvider("groq")}
+                    className={`px-3 py-1 text-xs font-semibold rounded-md transition-colors ${provider === "groq" ? "bg-surface-container-lowest text-primary shadow-sm" : "text-on-surface-variant hover:text-on-surface"}`}
+                  >
+                    Groq API
+                  </button>
+                </div>
+                
+                {/* Mobile tool calls toggle */}
+                <button
+                  onClick={() => setShowTools(!showTools)}
+                  className="lg:hidden p-2 hover:bg-surface-container-high rounded-full transition-colors relative"
+                >
+                  <span className="material-symbols-outlined text-primary">psychology</span>
+                  {toolCalls.length > 0 && (
+                    <span className="absolute -top-1 -right-1 w-4 h-4 bg-secondary text-on-secondary rounded-full text-[10px] flex items-center justify-center font-bold">
+                      {toolCalls.length}
+                    </span>
+                  )}
+                </button>
+              </div>
+            </>
+          ) : (
+            <div className="flex items-center gap-3">
+              <div className="w-10 h-10 rounded-full bg-[#25D366]/20 flex items-center justify-center text-[#25D366]">
+                <span className="material-symbols-outlined fill-icon">forum</span>
+              </div>
+              <div>
+                <h3 className="font-headline font-semibold">{activeChatId}</h3>
+                <p className="text-xs text-secondary flex items-center gap-1">
+                  WhatsApp Doğrudan Mesaj
+                </p>
+              </div>
             </div>
-            <div>
-              <h3 className="font-headline font-semibold">Customer Hub</h3>
-              <p className="text-xs text-secondary flex items-center gap-1">
-                <span className="material-symbols-outlined text-[14px]">smart_toy</span>
-                {provider === "ollama" ? "Gemma 4 ile çalışıyor" : "Groq ile çalışıyor"}
-              </p>
-            </div>
-          </div>
-          <div className="flex items-center gap-2">
-            {/* AI Provider Toggle */}
-            <div className="hidden md:flex bg-surface-container-high rounded-lg p-1">
-              <button
-                onClick={() => setProvider("ollama")}
-                className={`px-3 py-1 text-xs font-semibold rounded-md transition-colors ${provider === "ollama" ? "bg-surface-container-lowest text-primary shadow-sm" : "text-on-surface-variant hover:text-on-surface"}`}
-              >
-                Local (Ollama)
-              </button>
-              <button
-                onClick={() => setProvider("groq")}
-                className={`px-3 py-1 text-xs font-semibold rounded-md transition-colors ${provider === "groq" ? "bg-surface-container-lowest text-primary shadow-sm" : "text-on-surface-variant hover:text-on-surface"}`}
-              >
-                Groq API
-              </button>
-            </div>
-            
-            {/* Mobile tool calls toggle */}
-          <button
-            onClick={() => setShowTools(!showTools)}
-            className="lg:hidden p-2 hover:bg-surface-container-high rounded-full transition-colors relative"
-          >
-            <span className="material-symbols-outlined text-primary">psychology</span>
-            {toolCalls.length > 0 && (
-              <span className="absolute -top-1 -right-1 w-4 h-4 bg-secondary text-on-secondary rounded-full text-[10px] flex items-center justify-center font-bold">
-                {toolCalls.length}
-              </span>
-            )}
-          </button>
-          </div>
-        </div>
-
-        {/* WhatsApp Quick Integration Panel */}
-        <div className="p-3 md:p-4 border-b border-outline-variant bg-surface-container-lowest">
-          <h4 className="font-headline font-semibold text-sm mb-2 flex items-center gap-2 text-primary">
-            <span className="material-symbols-outlined text-secondary text-[18px]">send_to_mobile</span>
-            Müşteriye Doğrudan WhatsApp Mesajı
-          </h4>
-          <div className="flex flex-col md:flex-row gap-2 items-start md:items-center">
-            <input 
-              type="text" 
-              placeholder="Tel No (Örn: 905xxxxxxxxx)" 
-              value={waNumber}
-              onChange={(e) => setWaNumber(e.target.value)}
-              className="w-full md:w-48 bg-surface-container-low border border-outline-variant rounded-lg p-2 text-sm outline-none focus:border-secondary"
-            />
-            <input 
-              type="text"
-              placeholder="Gönderilecek mesaj..." 
-              value={waMessage}
-              onChange={(e) => setWaMessage(e.target.value)}
-              className="flex-1 w-full bg-surface-container-low border border-outline-variant rounded-lg p-2 text-sm outline-none focus:border-secondary"
-              onKeyDown={(e) => e.key === "Enter" && handleSendWhatsApp()}
-            />
-            <button 
-              onClick={handleSendWhatsApp}
-              disabled={waSending || !waNumber || !waMessage}
-              className={`w-full md:w-auto px-4 py-2 rounded-lg text-sm font-semibold transition-all whitespace-nowrap ${waSending || !waNumber || !waMessage ? 'bg-surface-container-high text-outline cursor-not-allowed' : 'bg-secondary text-on-secondary hover:bg-secondary/90'}`}
-            >
-              {waSending ? 'Gönderiliyor...' : 'Gönder'}
-            </button>
-          </div>
-          {waStatus && (
-            <p className={`text-xs mt-2 ${waStatus.type === 'error' ? 'text-error' : 'text-secondary font-medium'}`}>
-              {waStatus.text}
-            </p>
           )}
         </div>
 
+        {/* WhatsApp Quick Integration Panel (Only in AI Chat) */}
+        {activeChatId === "ai" && (
+          <div className="p-3 md:p-4 border-b border-outline-variant bg-surface-container-lowest">
+            <h4 className="font-headline font-semibold text-sm mb-2 flex items-center gap-2 text-primary">
+              <span className="material-symbols-outlined text-secondary text-[18px]">send_to_mobile</span>
+              Müşteriye Doğrudan WhatsApp Mesajı
+            </h4>
+            <div className="flex flex-col md:flex-row gap-2 items-start md:items-center">
+              <input 
+                type="text" 
+                placeholder="Tel No (Örn: 905xxxxxxxxx)" 
+                value={waNumber}
+                onChange={(e) => setWaNumber(e.target.value)}
+                className="w-full md:w-48 bg-surface-container-low border border-outline-variant rounded-lg p-2 text-sm outline-none focus:border-secondary"
+              />
+              <input 
+                type="text"
+                placeholder="Gönderilecek mesaj..." 
+                value={waMessage}
+                onChange={(e) => setWaMessage(e.target.value)}
+                className="flex-1 w-full bg-surface-container-low border border-outline-variant rounded-lg p-2 text-sm outline-none focus:border-secondary"
+                onKeyDown={(e) => e.key === "Enter" && handleSendWhatsApp()}
+              />
+              <button 
+                onClick={handleSendWhatsApp}
+                disabled={waSending || !waNumber || !waMessage}
+                className={`w-full md:w-auto px-4 py-2 rounded-lg text-sm font-semibold transition-all whitespace-nowrap ${waSending || !waNumber || !waMessage ? 'bg-surface-container-high text-outline cursor-not-allowed' : 'bg-secondary text-on-secondary hover:bg-secondary/90'}`}
+              >
+                {waSending ? 'Gönderiliyor...' : 'Gönder'}
+              </button>
+            </div>
+            {waStatus && (
+              <p className={`text-xs mt-2 ${waStatus.type === 'error' ? 'text-error' : 'text-secondary font-medium'}`}>
+                {waStatus.text}
+              </p>
+            )}
+          </div>
+        )}
+
         {/* Messages */}
         <div className="flex-1 overflow-y-auto p-4 md:p-6 space-y-4 md:space-y-6 bg-surface flex flex-col">
-          {messages.length === 0 && (
+          {currentMessages.length === 0 && activeChatId === "ai" && (
             <div className="flex-1 flex items-center justify-center text-center animate-fade-in">
               <div className="max-w-md">
                 <span className="material-symbols-outlined text-5xl md:text-6xl text-secondary-container mb-4">forum</span>
@@ -245,7 +295,7 @@ export default function CustomersPage() {
                 </p>
                 <div className="flex flex-wrap justify-center gap-2 mt-4">
                   {[
-                    "128 numaralı siparişim nerede?",
+                    "128 numaralı sipariş ne durumda?",
                     "Lavanta sabunu stokta var mı?",
                     "Bugünkü siparişleri özetle",
                     "Stok uyarılarını göster",
@@ -263,7 +313,21 @@ export default function CustomersPage() {
             </div>
           )}
 
-          {messages.map((m, i) => (
+          {currentMessages.length === 0 && activeChatId !== "ai" && (
+            <div className="flex-1 flex items-center justify-center text-center animate-fade-in">
+              <div className="max-w-md">
+                <span className="material-symbols-outlined text-5xl text-[#25D366] mb-4">forum</span>
+                <h3 className="font-headline text-lg font-semibold text-primary mb-2">
+                  Yeni Mesaj
+                </h3>
+                <p className="text-sm text-on-surface-variant">
+                  Müşteriye doğrudan mesaj göndererek iletişimi başlatın.
+                </p>
+              </div>
+            </div>
+          )}
+
+          {currentMessages.map((m, i) => (
             <div
               key={i}
               className={`flex ${m.role === "user" ? "justify-start" : "justify-end self-end"} max-w-[90%] md:max-w-[80%] animate-fade-in`}
@@ -272,12 +336,19 @@ export default function CustomersPage() {
                 className={`rounded-2xl p-3 md:p-4 shadow-sm ${
                   m.role === "user"
                     ? "bg-surface-container-lowest border border-outline-variant rounded-tl-sm"
-                    : "bg-secondary-container/20 border border-secondary/30 rounded-tr-sm relative"
+                    : activeChatId === "ai" 
+                      ? "bg-secondary-container/20 border border-secondary/30 rounded-tr-sm relative"
+                      : "bg-[#25D366]/10 border border-[#25D366]/30 rounded-tr-sm relative"
                 }`}
               >
-                {m.role === "assistant" && (
+                {m.role === "assistant" && activeChatId === "ai" && (
                   <div className="absolute -top-3 -right-2 bg-surface-container-lowest border border-secondary text-secondary rounded-full p-1 shadow-sm">
                     <span className="material-symbols-outlined text-[14px]">smart_toy</span>
+                  </div>
+                )}
+                {m.role === "assistant" && activeChatId !== "ai" && (
+                  <div className="absolute -top-3 -right-2 bg-surface-container-lowest border border-[#25D366] text-[#25D366] rounded-full p-1 shadow-sm">
+                    <span className="material-symbols-outlined text-[14px]">store</span>
                   </div>
                 )}
                 <p className="text-sm whitespace-pre-wrap">{m.content}</p>
@@ -316,14 +387,14 @@ export default function CustomersPage() {
                 type="text"
                 value={input}
                 onChange={(e) => setInput(e.target.value)}
-                onKeyDown={(e) => e.key === "Enter" && !e.shiftKey && handleSend()}
+                onKeyDown={(e) => e.key === "Enter" && !e.shiftKey && handleSendDynamic()}
                 placeholder="Mesajınızı yazın..."
                 className="w-full bg-transparent border-none focus:ring-0 p-3 text-sm outline-none"
                 disabled={loading}
               />
             </div>
             <button
-              onClick={handleSend}
+              onClick={handleSendDynamic}
               disabled={loading || !input.trim()}
               className={`p-3 rounded-xl shrink-0 transition-all duration-200 active:scale-95 ${
                 input.trim() && !loading

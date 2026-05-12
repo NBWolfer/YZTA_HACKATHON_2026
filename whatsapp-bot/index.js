@@ -11,6 +11,11 @@ app.use(express.json());
 const BACKEND_URL = process.env.BACKEND_URL || 'http://localhost:8000';
 const PORT = process.env.PORT || 3001;
 
+// ── QR & Status State ──────────────────────────────────────────────
+let latestQR = null;
+let isAuthenticated = false;
+let isReady = false;
+
 // Initialize WhatsApp Client
 const client = new Client({
     authStrategy: new LocalAuth(),
@@ -20,13 +25,31 @@ const client = new Client({
 });
 
 client.on('qr', (qr) => {
-    // Generate and scan this code with your phone
+    // Store QR string for the API
+    latestQR = qr;
+    isAuthenticated = false;
+    // Also print to terminal for convenience
     qrcode.generate(qr, { small: true });
     console.log('Please scan the QR code above to authenticate.');
 });
 
+client.on('authenticated', () => {
+    console.log('WhatsApp Client authenticated!');
+    isAuthenticated = true;
+    latestQR = null; // QR is no longer needed
+});
+
 client.on('ready', () => {
     console.log('WhatsApp Client is ready!');
+    isReady = true;
+    isAuthenticated = true;
+    latestQR = null;
+});
+
+client.on('disconnected', (reason) => {
+    console.log('WhatsApp Client disconnected:', reason);
+    isReady = false;
+    isAuthenticated = false;
 });
 
 client.on('message', async msg => {
@@ -66,7 +89,26 @@ client.on('message', async msg => {
 
 client.initialize();
 
-// Express Endpoints for Proactive Messaging
+// ── Express Endpoints ───────────────────────────────────────────────
+
+// QR code endpoint — returns the latest QR string for frontend rendering
+app.get('/api/qr', (req, res) => {
+    res.json({
+        qr: latestQR,
+        authenticated: isAuthenticated,
+        ready: isReady,
+    });
+});
+
+// Status endpoint — returns current connection state
+app.get('/api/status', (req, res) => {
+    res.json({
+        authenticated: isAuthenticated,
+        ready: isReady,
+    });
+});
+
+// Proactive messaging endpoint
 app.post('/api/send', async (req, res) => {
     const { number, message } = req.body;
 
@@ -78,9 +120,14 @@ app.post('/api/send', async (req, res) => {
         // WhatsApp IDs are usually formatted as [country_code][number]@c.us
         // Strip any non-numeric characters from the input
         const cleanNumber = number.replace(/\D/g, '');
-        const chatId = `${cleanNumber}@c.us`;
+        
+        // Resolve the correct WhatsApp ID to prevent "No LID for user" error
+        const numberDetails = await client.getNumberId(cleanNumber);
+        if (!numberDetails) {
+            return res.status(400).json({ error: 'Number is not registered on WhatsApp' });
+        }
 
-        await client.sendMessage(chatId, message);
+        await client.sendMessage(numberDetails._serialized, message);
         res.json({ success: true, message: 'Message sent successfully!' });
     } catch (error) {
         console.error('Error sending message:', error);

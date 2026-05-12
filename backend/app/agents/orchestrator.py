@@ -10,6 +10,7 @@ from openai import OpenAI
 from sqlalchemy.orm import Session
 
 from app.config import settings
+from app.agent_log import add_log
 from app.tools.order_tools import query_order_status, list_todays_orders, create_order
 from app.tools.stock_tools import check_stock, list_low_stock, get_all_products
 from app.tools.workflow_tools import get_morning_briefing, list_pending_tasks
@@ -19,6 +20,10 @@ client = OpenAI(
     base_url=f"{settings.ollama_base_url}/v1",
     api_key="ollama",  # Ollama doesn't need a real key
 )
+
+# Log system startup
+add_log("ORCHESTRATOR", "System initialized. AI engine ready.")
+add_log("ORCHESTRATOR", f"Default provider: {settings.default_ai_provider}, model: {settings.ollama_model}")
 
 groq_client = None
 if settings.groq_api_key:
@@ -173,6 +178,10 @@ async def chat(db: Session, messages: list[dict], provider: str = None) -> dict:
     if provider is None:
         provider = settings.default_ai_provider
 
+    # Log the incoming query
+    user_msg = next((m["content"] for m in reversed(messages) if m["role"] == "user"), "")
+    add_log("CUSTOMER", f"Incoming query: {user_msg[:80]}{'...' if len(user_msg) > 80 else ''}")
+
     full_messages = [{"role": "system", "content": SYSTEM_PROMPT}] + messages
     tool_calls_log = []
 
@@ -194,8 +203,10 @@ async def chat(db: Session, messages: list[dict], provider: str = None) -> dict:
 
         # If no tool calls, we have the final response
         if not choice.message.tool_calls:
+            response_text = choice.message.content or ""
+            add_log("CUSTOMER", f"Response generated ({len(response_text)} chars). Dispatching to chat UI.")
             return {
-                "response": choice.message.content or "",
+                "response": response_text,
                 "tool_calls": tool_calls_log,
             }
 
@@ -216,16 +227,26 @@ async def chat(db: Session, messages: list[dict], provider: str = None) -> dict:
                 fn_args = {}
 
             # Execute the tool
+            agent_name = fn_name.split("_")[0].upper() if "_" in fn_name else "WORKFLOW"
+            agent_map = {
+                "query": "ORDER", "list": "WORKFLOW", "check": "INVENTORY",
+                "get": "WORKFLOW", "create": "ORDER",
+            }
+            agent_name = agent_map.get(fn_name.split("_")[0], "WORKFLOW")
+            add_log(agent_name, f"Executing tool: {fn_name}({json.dumps(fn_args, ensure_ascii=False)[:100]})")
+
             if fn_name in TOOL_FUNCTIONS:
                 result = TOOL_FUNCTIONS[fn_name](db, **fn_args)
             else:
                 result = {"error": f"Bilinmeyen araç: {fn_name}"}
+                add_log("ORCHESTRATOR", f"Unknown tool requested: {fn_name}", level="error")
 
             tool_calls_log.append({
                 "tool": fn_name,
                 "args": fn_args,
                 "result": result,
             })
+            add_log(agent_name, f"Tool {fn_name} completed successfully.")
 
             # Append tool result for next iteration
             full_messages.append({

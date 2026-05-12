@@ -1,8 +1,6 @@
 "use client";
 import { useState, useRef, useEffect } from "react";
 
-import { useState, useRef, useEffect } from "react";
-
 interface TopNavProps {
   title?: string;
   onMenuClick?: () => void;
@@ -12,33 +10,27 @@ export default function TopNav({ title = "SME AI Command", onMenuClick }: TopNav
   const [searchQuery, setSearchQuery] = useState("");
   const [isSearchActive, setIsSearchActive] = useState(false);
   const [isProfileOpen, setIsProfileOpen] = useState(false);
-  
-  const [user, setUser] = useState<{name: string, email: string} | null>(null);
-  
+  const [showNotifications, setShowNotifications] = useState(false);
+  const [user, setUser] = useState<{ name: string; email: string } | null>(null);
+
   const searchRef = useRef<HTMLDivElement>(null);
   const profileRef = useRef<HTMLDivElement>(null);
+  const dropdownRef = useRef<HTMLDivElement>(null);
 
-  // Click outside to close dropdowns
   useEffect(() => {
     const userData = localStorage.getItem("user");
     if (userData) {
       setUser(JSON.parse(userData));
     }
 
-    const handleClickOutside = (e: MouseEvent) => {
-      if (searchRef.current && !searchRef.current.contains(e.target as Node)) setIsSearchActive(false);
-      if (profileRef.current && !profileRef.current.contains(e.target as Node)) setIsProfileOpen(false);
+    const handleClickOutside = (event: MouseEvent) => {
+      const target = event.target as Node;
+
+      if (searchRef.current && !searchRef.current.contains(target)) setIsSearchActive(false);
+      if (profileRef.current && !profileRef.current.contains(target)) setIsProfileOpen(false);
+      if (dropdownRef.current && !dropdownRef.current.contains(target)) setShowNotifications(false);
     };
 
-  const [showNotifications, setShowNotifications] = useState(false);
-  const dropdownRef = useRef<HTMLDivElement>(null);
-
-  useEffect(() => {
-    function handleClickOutside(event: MouseEvent) {
-      if (dropdownRef.current && !dropdownRef.current.contains(event.target as Node)) {
-        setShowNotifications(false);
-      }
-    }
     document.addEventListener("mousedown", handleClickOutside);
     return () => document.removeEventListener("mousedown", handleClickOutside);
   }, []);
@@ -87,7 +79,7 @@ export default function TopNav({ title = "SME AI Command", onMenuClick }: TopNav
         </div>
 
         {/* Mobile search button */}
-        <button 
+        <button
           onClick={() => {
             const query = prompt("Arama yapın:");
             if (query) alert(`"${query}" araması başlatıldı.`);
@@ -99,7 +91,7 @@ export default function TopNav({ title = "SME AI Command", onMenuClick }: TopNav
 
         {/* Actions */}
         <div className="flex items-center gap-0.5 md:gap-1 text-primary">
-          <button 
+          <button
             onClick={() => alert("Sistem Durumu: Tüm servisler (Frontend, Backend, AI) sorunsuz çalışıyor.")}
             className="p-1.5 hover:bg-surface-container-high rounded-full transition-colors hidden sm:block"
             title="Sistem Durumu"
@@ -107,7 +99,7 @@ export default function TopNav({ title = "SME AI Command", onMenuClick }: TopNav
             <span className="material-symbols-outlined">monitor_heart</span>
           </button>
           <div className="relative" ref={dropdownRef}>
-            <button 
+            <button
               onClick={() => setShowNotifications(!showNotifications)}
               className="p-1.5 hover:bg-surface-container-high rounded-full transition-colors relative"
             >
@@ -159,14 +151,13 @@ export default function TopNav({ title = "SME AI Command", onMenuClick }: TopNav
             )}
           </div>
           <button className="p-1.5 hover:bg-surface-container-high rounded-full transition-colors hidden sm:block">
-
             <span className="material-symbols-outlined">settings</span>
           </button>
         </div>
 
         {/* Avatar */}
         <div className="relative" ref={profileRef}>
-          <button 
+          <button
             onClick={() => setIsProfileOpen(!isProfileOpen)}
             className="w-8 h-8 rounded-full bg-primary-container flex items-center justify-center text-on-primary text-xs font-semibold border border-outline-variant hover:opacity-80 transition-opacity uppercase"
           >
@@ -178,22 +169,28 @@ export default function TopNav({ title = "SME AI Command", onMenuClick }: TopNav
                 <p className="text-sm font-semibold truncate">{user ? user.name : "Kullanıcı"}</p>
                 <p className="text-xs text-on-surface-variant truncate">{user ? user.email : "Giriş yapılmadı"}</p>
               </div>
-              <button 
-                onClick={() => { setIsProfileOpen(false); window.location.href = "/profile"; }}
+              <button
+                onClick={() => {
+                  setIsProfileOpen(false);
+                  window.location.href = "/profile";
+                }}
                 className="w-full text-left px-4 py-2 text-sm hover:bg-surface-container transition-colors flex items-center gap-2"
               >
                 <span className="material-symbols-outlined text-[18px]">person</span> Profilim
               </button>
-              <button 
-                onClick={() => setIsProfileOpen(false)}
+              <button
+                onClick={() => {
+                  setIsProfileOpen(false);
+                  window.location.href = "/settings";
+                }}
                 className="w-full text-left px-4 py-2 text-sm hover:bg-surface-container transition-colors flex items-center gap-2"
               >
                 <span className="material-symbols-outlined text-[18px]">settings</span> Hesap Ayarları
               </button>
               <div className="border-t border-outline-variant my-1" />
-              <button 
-                onClick={() => { 
-                  localStorage.removeItem("user"); 
+              <button
+                onClick={() => {
+                  localStorage.removeItem("user");
                   window.location.href = "/login";
                 }}
                 className="w-full text-left px-4 py-2 text-sm text-error hover:bg-error-container hover:text-on-error-container transition-colors flex items-center gap-2"

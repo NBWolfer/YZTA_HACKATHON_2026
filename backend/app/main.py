@@ -3,7 +3,7 @@ from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 
 from app.database import init_db
-from app.routers import chat, dashboard, inventory, orders, auth
+from app.routers import chat, dashboard, inventory, orders, auth, agents, predictions
 
 
 @asynccontextmanager
@@ -32,6 +32,8 @@ app.include_router(dashboard.router)
 app.include_router(inventory.router)
 app.include_router(orders.router)
 app.include_router(auth.router)
+app.include_router(agents.router)
+app.include_router(predictions.router)
 
 
 @app.get("/health")

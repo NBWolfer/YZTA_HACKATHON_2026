@@ -1,6 +1,8 @@
-from fastapi import APIRouter, Depends, HTTPException
+from fastapi import APIRouter, Depends, HTTPException, UploadFile, File
 from pydantic import BaseModel
 from sqlalchemy.orm import Session
+import csv
+import io
 
 from app.database import get_db
 from app.models import Product
@@ -97,3 +99,85 @@ def restock_product(
         "new_stock": product.stock_quantity,
         "status": product.stock_status.value
     }
+
+
+class ProductCreate(BaseModel):
+    name: str
+    category: str
+    unit_price: float
+    stock_quantity: int
+    stock_unit: str = "Adet"
+    low_stock_threshold: int = 20
+
+@router.post("/products")
+def create_product(
+    product_data: ProductCreate,
+    db: Session = Depends(get_db)
+):
+    """Manually add a single new product."""
+    new_product = Product(**product_data.dict())
+    db.add(new_product)
+    db.commit()
+    db.refresh(new_product)
+    
+    return {
+        "success": True,
+        "message": f"{new_product.name} başarıyla eklendi.",
+        "product_id": new_product.id
+    }
+
+@router.post("/products/import")
+async def import_products_csv(
+    file: UploadFile = File(...),
+    db: Session = Depends(get_db)
+):
+    """Import products from a CSV file."""
+    if not file.filename.endswith('.csv'):
+        raise HTTPException(status_code=400, detail="Lütfen geçerli bir CSV dosyası yükleyin.")
+        
+    try:
+        contents = await file.read()
+        decoded_content = contents.decode('utf-8-sig') # Handle BOM if present
+        csv_reader = csv.DictReader(io.StringIO(decoded_content))
+        
+        imported_count = 0
+        for row in csv_reader:
+            # Flexible key matching for robustness
+            keys = list(row.keys())
+            def get_val(possible_keys, default=None):
+                for pk in possible_keys:
+                    for k in keys:
+                        if k and pk.lower() in k.lower():
+                            return row[k]
+                return default
+                
+            name = get_val(['isim', 'ad', 'name'])
+            if not name:
+                continue # Skip invalid rows
+                
+            category = get_val(['kategori', 'category'], "Genel")
+            price = float(get_val(['fiyat', 'price', 'ücret'], 0.0))
+            quantity = int(get_val(['stok', 'miktar', 'quantity', 'adet'], 0))
+            unit = get_val(['birim', 'unit'], "Adet")
+            threshold = int(get_val(['kritik', 'eşik', 'threshold', 'low'], 20))
+            
+            product = Product(
+                name=name,
+                category=category,
+                unit_price=price,
+                stock_quantity=quantity,
+                stock_unit=unit,
+                low_stock_threshold=threshold
+            )
+            db.add(product)
+            imported_count += 1
+            
+        db.commit()
+        
+        return {
+            "success": True,
+            "message": f"{imported_count} ürün başarıyla içe aktarıldı."
+        }
+    except Exception as e:
+        db.rollback()
+        raise HTTPException(status_code=500, detail=f"İçe aktarma sırasında bir hata oluştu: {str(e)}")

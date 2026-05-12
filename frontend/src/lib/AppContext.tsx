@@ -1,7 +1,7 @@
 "use client";
 
-import React, { createContext, useContext, useState, useEffect } from "react";
-import { type ChatMessage, type ChatResponse, getWhatsAppHistory } from "./api";
+import React, { createContext, useContext, useState, useEffect, useRef, useCallback } from "react";
+import { type ChatMessage, type ChatResponse, getWhatsAppHistory, getAgentLogs, type AgentLogEntry } from "./api";
 
 export interface AgentLog {
   time: string;
@@ -12,13 +12,24 @@ export interface AgentLog {
   level?: "info" | "warn" | "error";
 }
 
-const INITIAL_LOGS: AgentLog[] = [
-  { time: "10:42:01.005", agent: "ORCHESTRATOR", color: "text-primary-fixed-dim", message: "System check OK. 4 agents registered." },
-  { time: "10:42:15.221", agent: "WORKFLOW", color: "text-inverse-primary", message: "Inbound webhook received from API_GW." },
-  { time: "10:42:15.225", agent: "CUSTOMER", color: "text-secondary-container", message: "Answering query for #104 via WhatsApp." },
-  { time: "10:42:16.100", agent: "ORDER", color: "text-surface-dim", message: "Fetching details for Order #104. Status: IN_TRANSIT (Yurtiçi)." },
-  { time: "10:42:17.550", agent: "CUSTOMER", color: "text-secondary-container", message: "Generating Turkish response. Dispatching to chat UI..." },
-];
+// Color map for agent names — keeps the terminal aesthetic
+const AGENT_COLORS: Record<string, string> = {
+  ORCHESTRATOR: "text-primary-fixed-dim",
+  WORKFLOW: "text-inverse-primary",
+  CUSTOMER: "text-secondary-container",
+  ORDER: "text-surface-dim",
+  INVENTORY: "text-[#ffb77d]",
+};
+
+function toAgentLog(entry: AgentLogEntry): AgentLog {
+  return {
+    time: entry.time,
+    agent: entry.agent,
+    color: AGENT_COLORS[entry.agent] || "text-on-primary-container",
+    message: entry.message,
+    level: entry.level,
+  };
+}
 
 interface AppContextProps {
   // Chat State
@@ -37,7 +48,6 @@ interface AppContextProps {
   setWaMessage: React.Dispatch<React.SetStateAction<string>>;
 
   // Dashboard / Agents State
-  systemUptime: number;
   logs: AgentLog[];
 }
 
@@ -55,70 +65,67 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
   const [waMessage, setWaMessage] = useState("");
 
   // Agents State
-  const [systemUptime, setSystemUptime] = useState(0);
-  const [logs, setLogs] = useState<AgentLog[]>(INITIAL_LOGS);
+  const [logs, setLogs] = useState<AgentLog[]>([]);
+  const logIndexRef = useRef(0);
 
-  // Poll WhatsApp History
+  // Poll WhatsApp History with recursive setTimeout
   useEffect(() => {
+    let timeoutId: NodeJS.Timeout;
     const fetchHistory = async () => {
       try {
         const data = await getWhatsAppHistory();
         setWaHistory(data.conversations || {});
       } catch (err) {
         console.error("Failed to fetch WhatsApp history", err);
+      } finally {
+        timeoutId = setTimeout(fetchHistory, 3000);
       }
     };
     fetchHistory();
-    const interval = setInterval(fetchHistory, 3000);
-    return () => clearInterval(interval);
+    return () => clearTimeout(timeoutId);
   }, []);
 
-  // System Uptime Timer
+  // Poll live agent logs from backend with recursive setTimeout
+  const fetchAgentLogs = useCallback(async () => {
+    try {
+      const data = await getAgentLogs(logIndexRef.current);
+      if (data.logs.length > 0) {
+        const newLogs = data.logs.map(toAgentLog);
+        setLogs((prev) => [...prev, ...newLogs]);
+      }
+      logIndexRef.current = data.next_index;
+    } catch (err) {
+      // Backend unreachable — silently skip
+    }
+  }, []);
+
   useEffect(() => {
-    const t = setInterval(() => setSystemUptime((u) => u + 1), 1000);
-    return () => clearInterval(t);
-  }, []);
+    let timeoutId: NodeJS.Timeout;
+    const pollLogs = async () => {
+      await fetchAgentLogs();
+      timeoutId = setTimeout(pollLogs, 3000);
+    };
+    pollLogs();
+    return () => clearTimeout(timeoutId);
+  }, [fetchAgentLogs]);
 
-  // Simulate live log entries
-  useEffect(() => {
-    const liveMessages: AgentLog[] = [
-      { time: "", agent: "INVENTORY", color: "text-[#ffb77d]", message: "Stock reconciliation pass complete. 3 items flagged.", level: "warn" },
-      { time: "", agent: "ORCHESTRATOR", color: "text-primary-fixed-dim", message: "Heartbeat OK. All agents responsive." },
-      { time: "", agent: "WORKFLOW", color: "text-inverse-primary", message: "Daily briefing scheduled for 08:00 UTC+3." },
-
-      { time: "", agent: "CUSTOMER", color: "text-secondary-container", message: "Idle. Waiting for inbound queries." },
-    ];
-
-    let idx = 0;
-    const interval = setInterval(() => {
-      if (idx >= liveMessages.length) { clearInterval(interval); return; }
-      const now = new Date();
-      const timeStr = `${now.getHours().toString().padStart(2, "0")}:${now.getMinutes().toString().padStart(2, "0")}:${now.getSeconds().toString().padStart(2, "0")}.${now.getMilliseconds().toString().padStart(3, "0")}`;
-      setLogs((prev) => [...prev, { ...liveMessages[idx], time: timeStr }]);
-      idx++;
-    }, 3000);
-
-    return () => clearInterval(interval);
-  }, []);
+  const contextValue = React.useMemo(() => ({
+    messages,
+    setMessages,
+    toolCalls,
+    setToolCalls,
+    provider,
+    setProvider,
+    waHistory,
+    waNumber,
+    setWaNumber,
+    waMessage,
+    setWaMessage,
+    logs,
+  }), [messages, toolCalls, provider, waHistory, waNumber, waMessage, logs]);
 
   return (
-    <AppContext.Provider
-      value={{
-        messages,
-        setMessages,
-        toolCalls,
-        setToolCalls,
-        provider,
-        setProvider,
-        waHistory,
-        waNumber,
-        setWaNumber,
-        waMessage,
-        setWaMessage,
-        systemUptime,
-        logs,
-      }}
-    >
+    <AppContext.Provider value={contextValue}>
       {children}
     </AppContext.Provider>
   );

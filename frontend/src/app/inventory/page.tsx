@@ -1,8 +1,8 @@
 "use client";
 
-import { useEffect, useState, useCallback } from "react";
+import { useEffect, useState, useCallback, useRef } from "react";
 import { createPortal } from "react-dom";
-import { getProducts, getLowStock, restockProduct, type ProductList, type LowStockList } from "@/lib/api";
+import { getProducts, getLowStock, restockProduct, getPrediction, createProduct, importProductsCSV, type ProductList, type LowStockList, type PredictionResult } from "@/lib/api";
 import { PageLoader } from "@/components/ui/LoadingSpinner";
 import { ErrorState, InlineError } from "@/components/ui/ErrorState";
 import { EmptyState } from "@/components/ui/EmptyState";
@@ -31,7 +31,14 @@ export default function InventoryPage() {
   const [selectedCategory, setSelectedCategory] = useState<string>("");
   const [restockingId, setRestockingId] = useState<number | null>(null);
   const [toastMessage, setToastMessage] = useState<string | null>(null);
-  const [activeModal, setActiveModal] = useState<{ type: "email" | "edit" | "predict"; product: any } | null>(null);
+  const [activeModal, setActiveModal] = useState<{ type: "email" | "edit" | "predict" | "add"; product?: any } | null>(null);
+  
+  // New States for Import / Add
+  const [importingCsv, setImportingCsv] = useState(false);
+  const fileInputRef = useRef<HTMLInputElement>(null);
+  const [addForm, setAddForm] = useState({ name: "", category: "Genel", unit_price: 0, stock_quantity: 0, stock_unit: "Adet", low_stock_threshold: 20 });
+  const [addingProduct, setAddingProduct] = useState(false);
+
   const [mounted, setMounted] = useState(false);
 
   useEffect(() => {
@@ -55,7 +62,9 @@ export default function InventoryPage() {
     }
   };
   const [searchQuery, setSearchQuery] = useState<string>("");
-  const [predictionProduct, setPredictionProduct] = useState<{name: string, category: string, stock: number} | null>(null);
+  const [prediction, setPrediction] = useState<PredictionResult | null>(null);
+  const [predictionLoading, setPredictionLoading] = useState(false);
+  const [predictionError, setPredictionError] = useState<string | null>(null);
 
   const fetchProducts = useCallback((category?: string) => {
     setProductsState("loading");
@@ -103,6 +112,43 @@ export default function InventoryPage() {
     
     setToastMessage("Envanter başarıyla dışa aktarıldı.");
     setTimeout(() => setToastMessage(null), 3000);
+  };
+
+  const handleCsvImport = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+
+    setImportingCsv(true);
+    try {
+      const res = await importProductsCSV(file);
+      setToastMessage(res.message);
+      fetchProducts(selectedCategory);
+      fetchLowStock();
+    } catch (err: any) {
+      setToastMessage(`Hata: ${err.message}`);
+    } finally {
+      setImportingCsv(false);
+      if (fileInputRef.current) fileInputRef.current.value = ""; // Reset file input
+      setTimeout(() => setToastMessage(null), 3000);
+    }
+  };
+
+  const handleAddSubmit = async (e: React.FormEvent) => {
+    e.preventDefault();
+    setAddingProduct(true);
+    try {
+      const res = await createProduct(addForm);
+      setToastMessage(res.message);
+      setActiveModal(null);
+      setAddForm({ name: "", category: "Genel", unit_price: 0, stock_quantity: 0, stock_unit: "Adet", low_stock_threshold: 20 });
+      fetchProducts(selectedCategory);
+      fetchLowStock();
+    } catch (err: any) {
+      setToastMessage(`Ekleme hatası: ${err.message}`);
+    } finally {
+      setAddingProduct(false);
+      setTimeout(() => setToastMessage(null), 3000);
+    }
   };
 
   // Full error only if both failed
@@ -174,13 +220,41 @@ export default function InventoryPage() {
             <option value="Tekstil">Tekstil</option>
             <option value="Baharat">Baharat</option>
           </select>
-          <button 
-            onClick={handleExportCSV}
-            className="flex items-center gap-1 px-3 md:px-4 py-2 border border-outline-variant rounded-lg bg-surface-container-lowest hover:bg-surface-container transition-colors text-xs font-semibold tracking-wider uppercase"
-          >
-            <span className="material-symbols-outlined text-[18px]">download</span>
-            <span className="hidden sm:inline">Dışa Aktar</span>
-          </button>
+          <div className="flex flex-wrap items-center gap-2">
+            <button 
+              onClick={() => setActiveModal({ type: "add" })}
+              className="flex items-center gap-1 px-3 md:px-4 py-2 border border-outline-variant rounded-lg bg-primary text-on-primary shadow-sm hover:elevation-1 transition-all text-xs font-semibold tracking-wider uppercase"
+            >
+              <span className="material-symbols-outlined text-[18px]">add</span>
+              <span className="hidden sm:inline">Yeni Ekle</span>
+            </button>
+            <input 
+              type="file" 
+              accept=".csv" 
+              ref={fileInputRef} 
+              style={{ display: "none" }} 
+              onChange={handleCsvImport} 
+            />
+            <button 
+              onClick={() => fileInputRef.current?.click()}
+              disabled={importingCsv}
+              className="flex items-center gap-1 px-3 md:px-4 py-2 border border-outline-variant rounded-lg bg-surface-container-lowest hover:bg-surface-container transition-colors text-xs font-semibold tracking-wider uppercase"
+            >
+              {importingCsv ? (
+                <span className="material-symbols-outlined text-[18px] animate-spin">autorenew</span>
+              ) : (
+                <span className="material-symbols-outlined text-[18px]">upload</span>
+              )}
+              <span className="hidden sm:inline">İçe Aktar</span>
+            </button>
+            <button 
+              onClick={handleExportCSV}
+              className="flex items-center gap-1 px-3 md:px-4 py-2 border border-outline-variant rounded-lg bg-surface-container-lowest hover:bg-surface-container transition-colors text-xs font-semibold tracking-wider uppercase"
+            >
+              <span className="material-symbols-outlined text-[18px]">download</span>
+              <span className="hidden sm:inline">Dışa Aktar</span>
+            </button>
+          </div>
         </div>
       </div>
 
@@ -424,30 +498,22 @@ Lütfen en kısa sürede 100 ${activeModal.product.stock_unit} tutarında yeni b
                   )}
 
                   {activeModal.type === "predict" && (
-                    <div className="flex flex-col gap-4 text-center items-center py-4">
-                      <div className="w-16 h-16 rounded-full bg-secondary-container text-on-secondary-container flex items-center justify-center mb-2">
-                        <span className="material-symbols-outlined text-3xl">trending_up</span>
-                      </div>
-                      <h4 className="text-xl font-bold">{activeModal.product.name}</h4>
-                      {(() => {
-                        const percentage = 5 + (activeModal.product.id * 7) % 30;
-                        const isIncrease = (activeModal.product.id % 2) === 0;
-                        return (
-                          <p className="text-on-surface-variant text-sm px-4">
-                            {isIncrease ? (
-                              <>
-                                Geçmiş veriler analiz edildiğinde bu ürünün önümüzdeki hafta <strong className="text-secondary">%15 ile %{percentage + 15} arası talep artışı</strong> yaşaması öngörülmektedir. Hafta sonu kampanyası öncesi stoklarınızı hazırlamanız önerilir.
-                              </>
-                            ) : (
-                              <>
-                                Pazar trendlerine göre bu üründe önümüzdeki hafta <strong className="text-primary">%{percentage} talep düşüşü</strong> öngörülüyor. Elinizdeki {activeModal.product.stock_quantity} {activeModal.product.stock_unit} stok şu an için fazlasıyla yeterlidir.
-                              </>
-                            )}
-                          </p>
-                        );
-                      })()}
-                      <button onClick={() => setActiveModal(null)} className="mt-4 px-6 py-2 text-sm font-semibold rounded-lg bg-surface-container hover:bg-surface-container-high border border-outline-variant transition-colors">Kapat</button>
-                    </div>
+                    <PredictionModal
+                      productId={activeModal.product.id}
+                      prediction={prediction}
+                      loading={predictionLoading}
+                      error={predictionError}
+                      onLoad={() => {
+                        setPredictionLoading(true);
+                        setPredictionError(null);
+                        setPrediction(null);
+                        getPrediction(activeModal.product.id)
+                          .then((data) => setPrediction(data))
+                          .catch(() => setPredictionError("Tahmin verileri yüklenemedi."))
+                          .finally(() => setPredictionLoading(false));
+                      }}
+                      onClose={() => setActiveModal(null)}
+                    />
                   )}
 
                   {activeModal.type === "edit" && (
@@ -460,75 +526,183 @@ Lütfen en kısa sürede 100 ${activeModal.product.stock_unit} tutarında yeni b
                       </div>
                     </div>
                   )}
+
+                  {activeModal.type === "add" && (
+                    <form onSubmit={handleAddSubmit} className="flex flex-col gap-4">
+                      <div>
+                        <label className="text-xs font-semibold text-on-surface-variant mb-1 block">Ürün Adı</label>
+                        <input required type="text" value={addForm.name} onChange={e => setAddForm({...addForm, name: e.target.value})} className="w-full border border-outline-variant rounded-lg p-2 text-sm bg-surface-container-lowest outline-none focus:border-secondary" />
+                      </div>
+                      <div className="grid grid-cols-2 gap-4">
+                        <div>
+                          <label className="text-xs font-semibold text-on-surface-variant mb-1 block">Kategori</label>
+                          <input required type="text" value={addForm.category} onChange={e => setAddForm({...addForm, category: e.target.value})} className="w-full border border-outline-variant rounded-lg p-2 text-sm bg-surface-container-lowest outline-none focus:border-secondary" />
+                        </div>
+                        <div>
+                          <label className="text-xs font-semibold text-on-surface-variant mb-1 block">Birim Fiyat (₺)</label>
+                          <input required type="number" step="0.01" min="0" value={addForm.unit_price} onChange={e => setAddForm({...addForm, unit_price: parseFloat(e.target.value)})} className="w-full border border-outline-variant rounded-lg p-2 text-sm bg-surface-container-lowest outline-none focus:border-secondary" />
+                        </div>
+                      </div>
+                      <div className="grid grid-cols-2 gap-4">
+                        <div>
+                          <label className="text-xs font-semibold text-on-surface-variant mb-1 block">Stok Miktarı</label>
+                          <input required type="number" min="0" value={addForm.stock_quantity} onChange={e => setAddForm({...addForm, stock_quantity: parseInt(e.target.value)})} className="w-full border border-outline-variant rounded-lg p-2 text-sm bg-surface-container-lowest outline-none focus:border-secondary" />
+                        </div>
+                        <div>
+                          <label className="text-xs font-semibold text-on-surface-variant mb-1 block">Stok Birimi</label>
+                          <select value={addForm.stock_unit} onChange={e => setAddForm({...addForm, stock_unit: e.target.value})} className="w-full border border-outline-variant rounded-lg p-2 text-sm bg-surface-container-lowest outline-none focus:border-secondary">
+                            <option value="Adet">Adet</option>
+                            <option value="Kg">Kg</option>
+                            <option value="Litre">Litre</option>
+                          </select>
+                        </div>
+                      </div>
+                      <div>
+                        <label className="text-xs font-semibold text-on-surface-variant mb-1 block">Kritik Stok Eşiği</label>
+                        <input required type="number" min="0" value={addForm.low_stock_threshold} onChange={e => setAddForm({...addForm, low_stock_threshold: parseInt(e.target.value)})} className="w-full border border-outline-variant rounded-lg p-2 text-sm bg-surface-container-lowest outline-none focus:border-secondary" />
+                      </div>
+                      <div className="mt-2 flex justify-end gap-2">
+                        <button type="button" onClick={() => setActiveModal(null)} className="px-4 py-2 text-sm font-semibold rounded-lg hover:bg-surface-container transition-colors">İptal</button>
+                        <button type="submit" disabled={addingProduct} className="px-4 py-2 text-sm font-semibold rounded-lg bg-primary text-on-primary hover:opacity-90 transition-opacity disabled:opacity-50">
+                          {addingProduct ? "Ekleniyor..." : "Ürünü Ekle"}
+                        </button>
+                      </div>
+                    </form>
+                  )}
                 </div>
               </div>
             </div>
           )}
         </>,
         document.body
-      {/* AI Prediction Modal */}
-      {predictionProduct && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center p-4">
-          <div className="absolute inset-0 bg-inverse-surface/60 backdrop-blur-sm" onClick={() => setPredictionProduct(null)} />
-          <div className="relative bg-surface-container-lowest rounded-2xl shadow-2xl w-full max-w-lg border border-outline-variant overflow-hidden animate-slide-up flex flex-col">
-            
-            <div className="bg-surface-bright px-6 py-4 border-b border-outline-variant flex justify-between items-center">
-              <div className="flex items-center gap-2">
-                <div className="w-8 h-8 rounded-full bg-primary/10 text-primary flex items-center justify-center shadow-sm">
-                  <span className="material-symbols-outlined text-sm">auto_awesome</span>
-                </div>
-                <h3 className="font-headline font-bold text-primary">SME Copilot: Talep Tahmini</h3>
-              </div>
-              <button 
-                onClick={() => setPredictionProduct(null)}
-                className="p-1 hover:bg-surface-container-high rounded-full transition-colors"
-              >
-                <span className="material-symbols-outlined">close</span>
-              </button>
-            </div>
-
-            <div className="p-6">
-              <div className="mb-6">
-                <h4 className="text-lg font-bold text-on-surface">{predictionProduct.name}</h4>
-                <p className="text-sm text-on-surface-variant flex items-center gap-2 mt-1">
-                  <span className="material-symbols-outlined text-[16px]">category</span> {predictionProduct.category}
-                  <span className="text-outline-variant">|</span>
-                  <span className="material-symbols-outlined text-[16px]">inventory_2</span> Mevcut Stok: {predictionProduct.stock}
-                </p>
-              </div>
-
-              {/* AI Insight Box */}
-              <div className="bg-primary/5 border border-primary/20 rounded-xl p-4 mb-6 flex items-start gap-3">
-                <span className="material-symbols-outlined text-primary mt-0.5">insights</span>
-                <p className="text-sm text-on-surface leading-relaxed">
-                  Son 30 günlük satış trendleri ve yaklaşan dönemsel hareketlilik incelendiğinde, bu ürüne olan talebin <strong>önümüzdeki 7 gün içinde %24 artması</strong> bekleniyor. Stok seviyenizin cuma gününe kadar kritik seviyeye inme ihtimali yüksektir.
-                </p>
-              </div>
-
-              {/* Mock Chart */}
-              <div>
-                <h5 className="text-xs font-semibold tracking-wider uppercase text-on-surface-variant mb-4">Önümüzdeki 7 Günlük Satış Tahmini (Adet)</h5>
-                <div className="h-32 flex items-end justify-between gap-2 pb-2">
-                  {[12, 15, 14, 22, 28, 35, 30].map((val, i) => (
-                    <div key={i} className="w-full flex flex-col items-center gap-2 group">
-                      <div className="w-full bg-primary/20 rounded-t-sm group-hover:bg-primary transition-colors relative" style={{ height: `${(val / 40) * 100}%`, animation: `slide-up 0.4s ease-out ${i * 50}ms both` }}>
-                        <span className="absolute -top-6 left-1/2 -translate-x-1/2 text-[10px] font-bold text-primary opacity-0 group-hover:opacity-100 transition-opacity">
-                          {val}
-                        </span>
-                      </div>
-                      <span className="text-[10px] text-on-surface-variant font-mono">
-                        {['Bugün', 'Yrn', '+2', '+3', '+4', '+5', '+6'][i]}
-                      </span>
-                    </div>
-                  ))}
-                </div>
-              </div>
-            </div>
-            
-          </div>
-        </div>
       )}
+    </div>
+  );
+}
 
+/** Real AI Prediction Modal — fetches and displays actual order history analysis */
+function PredictionModal({ productId, prediction, loading, error, onLoad, onClose }: {
+  productId: number;
+  prediction: PredictionResult | null;
+  loading: boolean;
+  error: string | null;
+  onLoad: () => void;
+  onClose: () => void;
+}) {
+  // Trigger data load on mount
+  useEffect(() => { onLoad(); }, [productId]); // eslint-disable-line react-hooks/exhaustive-deps
+
+  if (loading) {
+    return (
+      <div className="flex flex-col items-center justify-center py-12 gap-3">
+        <div className="w-8 h-8 border-3 border-outline-variant border-t-primary rounded-full animate-spin" />
+        <p className="text-sm text-on-surface-variant">Sipariş geçmişi analiz ediliyor...</p>
+      </div>
+    );
+  }
+
+  if (error) {
+    return (
+      <div className="flex flex-col items-center py-8 gap-3">
+        <span className="material-symbols-outlined text-3xl text-error">error</span>
+        <p className="text-sm text-error font-semibold">{error}</p>
+        <button onClick={onLoad} className="px-4 py-1.5 bg-surface-container border border-outline-variant rounded-lg text-xs font-semibold hover:bg-surface-container-high transition-colors">Tekrar Dene</button>
+      </div>
+    );
+  }
+
+  if (!prediction) return null;
+
+  const { product, analysis, forecast, insight, reorder } = prediction;
+  const maxForecast = Math.max(...forecast.daily, 1);
+  const dayLabels = ['Yarın', '+2', '+3', '+4', '+5', '+6', '+7'];
+
+  return (
+    <div className="flex flex-col gap-5">
+      {/* Product header */}
+      <div className="flex items-center gap-3">
+        <div className="w-12 h-12 rounded-full bg-secondary-container text-on-secondary-container flex items-center justify-center">
+          <span className="material-symbols-outlined text-2xl">trending_up</span>
+        </div>
+        <div>
+          <h4 className="text-lg font-bold">{product.name}</h4>
+          <p className="text-xs text-on-surface-variant flex items-center gap-2">
+            <span className="material-symbols-outlined text-[14px]">category</span> {product.category}
+            <span className="text-outline-variant">|</span>
+            <span className="material-symbols-outlined text-[14px]">inventory_2</span> Stok: {product.stock_quantity} {product.stock_unit}
+          </p>
+        </div>
+      </div>
+
+      {/* Stats row */}
+      <div className="grid grid-cols-3 gap-2">
+        <div className="bg-surface-container-low rounded-lg p-3 text-center">
+          <p className="text-[10px] font-semibold tracking-wider uppercase text-on-surface-variant">90 Gün Satış</p>
+          <p className="text-lg font-bold text-primary">{analysis.total_sold_90d}</p>
+        </div>
+        <div className="bg-surface-container-low rounded-lg p-3 text-center">
+          <p className="text-[10px] font-semibold tracking-wider uppercase text-on-surface-variant">Günlük Ort.</p>
+          <p className="text-lg font-bold text-primary">{analysis.daily_velocity}</p>
+        </div>
+        <div className="bg-surface-container-low rounded-lg p-3 text-center">
+          <p className="text-[10px] font-semibold tracking-wider uppercase text-on-surface-variant">Haftalık Trend</p>
+          <p className={`text-lg font-bold flex items-center justify-center gap-1 ${
+            analysis.trend_direction === 'up' ? 'text-error' : analysis.trend_direction === 'down' ? 'text-secondary' : 'text-on-surface'
+          }`}>
+            <span className="material-symbols-outlined text-[16px]">
+              {analysis.trend_direction === 'up' ? 'trending_up' : analysis.trend_direction === 'down' ? 'trending_down' : 'trending_flat'}
+            </span>
+            %{analysis.trend_percent.toFixed(0)}
+          </p>
+        </div>
+      </div>
+
+      {/* AI Insight */}
+      <div className="bg-primary/5 border border-primary/20 rounded-xl p-4 flex items-start gap-3">
+        <span className="material-symbols-outlined text-primary mt-0.5">insights</span>
+        <p className="text-sm text-on-surface leading-relaxed" dangerouslySetInnerHTML={{ __html: insight.replace(/\*\*(.*?)\*\*/g, '<strong>$1</strong>') }} />
+      </div>
+
+      {/* 7-day forecast chart */}
+      <div>
+        <h5 className="text-xs font-semibold tracking-wider uppercase text-on-surface-variant mb-3">Önümüzdeki 7 Günlük Talep Tahmini (Adet)</h5>
+        <div className="h-32 flex items-end justify-between gap-2 pb-2">
+          {forecast.daily.map((val, i) => (
+            <div key={i} className="w-full flex flex-col items-center gap-2 group">
+              <div
+                className="w-full bg-primary/20 rounded-t-sm group-hover:bg-primary transition-colors relative"
+                style={{ height: `${(val / maxForecast) * 100}%`, minHeight: val > 0 ? '4px' : '0px', animation: `slide-up 0.4s ease-out ${i * 50}ms both` }}
+              >
+                <span className="absolute -top-6 left-1/2 -translate-x-1/2 text-[10px] font-bold text-primary opacity-0 group-hover:opacity-100 transition-opacity">
+                  {val}
+                </span>
+              </div>
+              <span className="text-[10px] text-on-surface-variant font-mono">{dayLabels[i]}</span>
+            </div>
+          ))}
+        </div>
+      </div>
+
+      {/* Stockout + reorder info */}
+      <div className="flex gap-3">
+        {forecast.days_until_stockout !== null && (
+          <div className={`flex-1 p-3 rounded-lg border ${
+            forecast.days_until_stockout <= 7 ? 'border-error/30 bg-error-container/10' : 'border-outline-variant bg-surface-container-low'
+          }`}>
+            <p className="text-[10px] font-semibold tracking-wider uppercase text-on-surface-variant">Stok Yeterlilik</p>
+            <p className={`text-lg font-bold ${forecast.days_until_stockout <= 7 ? 'text-error' : 'text-on-surface'}`}>
+              ~{Math.round(forecast.days_until_stockout)} gün
+            </p>
+          </div>
+        )}
+        <div className="flex-1 p-3 rounded-lg border border-outline-variant bg-surface-container-low">
+          <p className="text-[10px] font-semibold tracking-wider uppercase text-on-surface-variant">Önerilen Sipariş</p>
+          <p className="text-lg font-bold text-primary">{reorder.suggested_quantity} {product.stock_unit}</p>
+          <p className="text-[10px] text-on-surface-variant">Tahmini: ₺{reorder.estimated_cost.toLocaleString('tr-TR')}</p>
+        </div>
+      </div>
+
+      <button onClick={onClose} className="mt-1 px-6 py-2 text-sm font-semibold rounded-lg bg-surface-container hover:bg-surface-container-high border border-outline-variant transition-colors self-center">Kapat</button>
     </div>
   );
 }
