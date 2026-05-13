@@ -2,7 +2,7 @@
 
 import { useEffect, useState, useCallback, useRef } from "react";
 import { createPortal } from "react-dom";
-import { getProducts, getLowStock, restockProduct, getPrediction, createProduct, importProductsCSV, type ProductList, type LowStockList, type PredictionResult } from "@/lib/api";
+import { getProducts, getLowStock, restockProduct, getPrediction, createProduct, importProductsCSV, updateStock, type ProductList, type LowStockList, type PredictionResult } from "@/lib/api";
 import { PageLoader } from "@/components/ui/LoadingSpinner";
 import { ErrorState, InlineError } from "@/components/ui/ErrorState";
 import { EmptyState } from "@/components/ui/EmptyState";
@@ -38,6 +38,7 @@ export default function InventoryPage() {
   const fileInputRef = useRef<HTMLInputElement>(null);
   const [addForm, setAddForm] = useState({ name: "", category: "Genel", unit_price: 0, stock_quantity: 0, stock_unit: "Adet", low_stock_threshold: 20 });
   const [addingProduct, setAddingProduct] = useState(false);
+  const [updatingStockId, setUpdatingStockId] = useState<number | null>(null);
 
   const [mounted, setMounted] = useState(false);
 
@@ -61,6 +62,22 @@ export default function InventoryPage() {
       setRestockingId(null);
     }
   };
+  const handleStockAdjust = async (productId: number, delta: number) => {
+    try {
+      setUpdatingStockId(productId);
+      const res = await updateStock(productId, delta);
+      setToastMessage(res.message);
+      fetchProducts(selectedCategory);
+      fetchLowStock();
+      setTimeout(() => setToastMessage(null), 3000);
+    } catch (err: any) {
+      setToastMessage(err.message || "Stok güncellenirken hata oluştu.");
+      setTimeout(() => setToastMessage(null), 3000);
+    } finally {
+      setUpdatingStockId(null);
+    }
+  };
+
   const [searchQuery, setSearchQuery] = useState<string>("");
   const [prediction, setPrediction] = useState<PredictionResult | null>(null);
   const [predictionLoading, setPredictionLoading] = useState(false);
@@ -350,11 +367,28 @@ export default function InventoryPage() {
                             </div>
                           </td>
                           <td className="py-3 px-4 text-on-surface-variant hidden sm:table-cell">{p.category}</td>
-                          <td className="py-3 px-4 text-right font-mono">
-                            <div className={p.status === "Low Stock" ? "text-error font-bold" : p.status === "Out of Stock" ? "text-outline" : ""}>
-                              {p.stock_quantity} {p.stock_unit}
+                          <td className="py-3 px-4 font-mono">
+                            <div className="flex items-center justify-end gap-2">
+                              <button
+                                onClick={() => handleStockAdjust(p.id, -1)}
+                                disabled={updatingStockId === p.id || p.stock_quantity <= 0}
+                                className="w-7 h-7 flex items-center justify-center rounded-md border border-outline-variant bg-surface-container-low hover:bg-surface-container-high text-on-surface-variant transition-colors disabled:opacity-30 disabled:cursor-not-allowed active:scale-95"
+                              >
+                                <span className="material-symbols-outlined text-[16px]">remove</span>
+                              </button>
+                              <span className={`min-w-[3rem] text-center tabular-nums ${p.status === "Low Stock" ? "text-error font-bold" : p.status === "Out of Stock" ? "text-outline" : ""}`}>
+                                {p.stock_quantity}
+                              </span>
+                              <button
+                                onClick={() => handleStockAdjust(p.id, 1)}
+                                disabled={updatingStockId === p.id}
+                                className="w-7 h-7 flex items-center justify-center rounded-md border border-outline-variant bg-surface-container-low hover:bg-surface-container-high text-on-surface-variant transition-colors disabled:opacity-30 disabled:cursor-not-allowed active:scale-95"
+                              >
+                                <span className="material-symbols-outlined text-[16px]">add</span>
+                              </button>
+                              <span className="text-xs text-on-surface-variant ml-1">{p.stock_unit}</span>
                             </div>
-                            <div className="text-[12px] text-on-surface-variant">
+                            <div className="text-[12px] text-on-surface-variant text-right mt-0.5">
                               Birim: ₺{p.unit_price.toFixed(2)}
                             </div>
                           </td>

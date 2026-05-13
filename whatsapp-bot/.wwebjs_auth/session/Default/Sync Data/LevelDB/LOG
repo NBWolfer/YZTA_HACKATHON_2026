@@ -1,4 +1,3 @@
-2026/05/13-00:09:30.383 1eac Creating DB E:\YZTA-Hackathon\whatsapp-bot\.wwebjs_auth\session\Default\Sync Data\LevelDB since it was missing.
-2026/05/13-00:09:30.390 1eac Reusing MANIFEST E:\YZTA-Hackathon\whatsapp-bot\.wwebjs_auth\session\Default\Sync Data\LevelDB/MANIFEST-000001
-2026/05/13-00:09:30.390 1eac Recovering log #3
-2026/05/13-00:09:30.390 1eac Reusing old log E:\YZTA-Hackathon\whatsapp-bot\.wwebjs_auth\session\Default\Sync Data\LevelDB/000003.log 
+2026/05/13-10:51:31.101 1c68 Reusing MANIFEST E:\YZTA-Hackathon\whatsapp-bot\.wwebjs_auth\session\Default\Sync Data\LevelDB/MANIFEST-000001
+2026/05/13-10:51:31.113 1c68 Recovering log #3
+2026/05/13-10:51:31.114 1c68 Reusing old log E:\YZTA-Hackathon\whatsapp-bot\.wwebjs_auth\session\Default\Sync Data\LevelDB/000003.log 

@@ -6,7 +6,8 @@ Routes incoming messages to the right tools and synthesizes responses.
 """
 
 import json
-from openai import OpenAI
+import asyncio
+from openai import AsyncOpenAI
 from sqlalchemy.orm import Session
 
 from app.config import settings
@@ -15,8 +16,8 @@ from app.tools.order_tools import query_order_status, list_todays_orders, create
 from app.tools.stock_tools import check_stock, list_low_stock, get_all_products
 from app.tools.workflow_tools import get_morning_briefing, list_pending_tasks
 
-# OpenAI-compatible client pointing to Ollama
-client = OpenAI(
+# Async OpenAI-compatible client pointing to Ollama
+client = AsyncOpenAI(
     base_url=f"{settings.ollama_base_url}/v1",
     api_key="ollama",  # Ollama doesn't need a real key
 )
@@ -27,7 +28,7 @@ add_log("ORCHESTRATOR", f"Default provider: {settings.default_ai_provider}, mode
 
 groq_client = None
 if settings.groq_api_key:
-    groq_client = OpenAI(
+    groq_client = AsyncOpenAI(
         base_url="https://api.groq.com/openai/v1",
         api_key=settings.groq_api_key,
     )
@@ -187,12 +188,12 @@ async def chat(db: Session, messages: list[dict], provider: str = None) -> dict:
 
     # Choose correct client and model
     active_client = groq_client if provider == "groq" and groq_client else client
-    active_model = "llama-3.1-8b-instant" if active_client == groq_client else settings.ollama_model
+    active_model = "llama-3.3-70b-versatile" if active_client == groq_client else settings.ollama_model
 
     # Agent loop: keep calling until we get a final text response
     max_iterations = 5
     for _ in range(max_iterations):
-        response = active_client.chat.completions.create(
+        response = await active_client.chat.completions.create(
             model=active_model,
             messages=full_messages,
             tools=TOOLS,
@@ -226,8 +227,7 @@ async def chat(db: Session, messages: list[dict], provider: str = None) -> dict:
             except Exception:
                 fn_args = {}
 
-            # Execute the tool
-            agent_name = fn_name.split("_")[0].upper() if "_" in fn_name else "WORKFLOW"
+            # Determine agent name for logging
             agent_map = {
                 "query": "ORDER", "list": "WORKFLOW", "check": "INVENTORY",
                 "get": "WORKFLOW", "create": "ORDER",
@@ -235,8 +235,9 @@ async def chat(db: Session, messages: list[dict], provider: str = None) -> dict:
             agent_name = agent_map.get(fn_name.split("_")[0], "WORKFLOW")
             add_log(agent_name, f"Executing tool: {fn_name}({json.dumps(fn_args, ensure_ascii=False)[:100]})")
 
+            # Execute DB tool in a thread to avoid blocking the event loop
             if fn_name in TOOL_FUNCTIONS:
-                result = TOOL_FUNCTIONS[fn_name](db, **fn_args)
+                result = await asyncio.to_thread(TOOL_FUNCTIONS[fn_name], db, **fn_args)
             else:
                 result = {"error": f"Bilinmeyen araç: {fn_name}"}
                 add_log("ORCHESTRATOR", f"Unknown tool requested: {fn_name}", level="error")

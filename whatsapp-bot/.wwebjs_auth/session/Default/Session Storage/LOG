@@ -1,4 +1,3 @@
-2026/05/13-00:09:30.424 8300 Creating DB E:\YZTA-Hackathon\whatsapp-bot\.wwebjs_auth\session\Default\Session Storage since it was missing.
-2026/05/13-00:09:30.439 8300 Reusing MANIFEST E:\YZTA-Hackathon\whatsapp-bot\.wwebjs_auth\session\Default\Session Storage/MANIFEST-000001
-2026/05/13-00:09:30.440 8300 Recovering log #3
-2026/05/13-00:09:30.441 8300 Reusing old log E:\YZTA-Hackathon\whatsapp-bot\.wwebjs_auth\session\Default\Session Storage/000003.log 
+2026/05/13-10:51:34.232 454c Reusing MANIFEST E:\YZTA-Hackathon\whatsapp-bot\.wwebjs_auth\session\Default\Session Storage/MANIFEST-000001
+2026/05/13-10:51:34.232 454c Recovering log #3
+2026/05/13-10:51:34.234 454c Reusing old log E:\YZTA-Hackathon\whatsapp-bot\.wwebjs_auth\session\Default\Session Storage/000003.log 

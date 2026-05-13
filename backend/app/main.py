@@ -3,7 +3,7 @@ from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 
 from app.database import init_db
-from app.routers import chat, dashboard, inventory, orders, auth, agents, predictions
+from app.routers import chat, dashboard, inventory, orders, auth, agents, predictions, notifications, search, profile, whatsapp
 
 
 @asynccontextmanager
@@ -34,6 +34,10 @@ app.include_router(orders.router)
 app.include_router(auth.router)
 app.include_router(agents.router)
 app.include_router(predictions.router)
+app.include_router(notifications.router)
+app.include_router(search.router)
+app.include_router(profile.router)
+app.include_router(whatsapp.router)
 
 
 @app.get("/health")

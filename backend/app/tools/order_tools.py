@@ -2,7 +2,7 @@
 These are called by the AI agent via Gemma 4 function calling."""
 
 from sqlalchemy.orm import Session
-from app.models import Order, OrderItem, CargoTracking, OrderStatus
+from app.models import Order, OrderItem, OrderStatus
 
 
 def query_order_status(db: Session, order_id: int) -> dict:
@@ -72,30 +72,38 @@ def create_order(db: Session, customer_id: int, items: list[dict]) -> dict:
     """Create a new order. items = [{"product_id": int, "quantity": int}, ...]"""
     from app.models import Product
 
+    # Validate stock availability before creating anything
+    validated_items = []
+    for item_data in items:
+        product = db.query(Product).filter(Product.id == item_data["product_id"]).first()
+        if not product:
+            continue
+        if product.stock_quantity < item_data["quantity"]:
+            return {"error": f"{product.name} için yeterli stok yok. Mevcut: {product.stock_quantity}"}
+        validated_items.append((product, item_data["quantity"]))
+
+    if not validated_items:
+        return {"error": "Geçerli ürün bulunamadı."}
+
+    # All validated — now create the order
     order = Order(customer_id=customer_id, status=OrderStatus.HAZIRLANIYOR)
     db.add(order)
     db.flush()
 
     total = 0.0
     created_items = []
-    for item_data in items:
-        product = db.query(Product).get(item_data["product_id"])
-        if not product:
-            continue
-        if product.stock_quantity < item_data["quantity"]:
-            return {"error": f"{product.name} için yeterli stok yok. Mevcut: {product.stock_quantity}"}
-
+    for product, qty in validated_items:
         oi = OrderItem(
             order_id=order.id,
             product_id=product.id,
-            quantity=item_data["quantity"],
+            quantity=qty,
             unit_price=product.unit_price,
         )
         db.add(oi)
-        product.stock_quantity -= item_data["quantity"]
-        line_total = product.unit_price * item_data["quantity"]
+        product.stock_quantity -= qty
+        line_total = product.unit_price * qty
         total += line_total
-        created_items.append({"product": product.name, "qty": item_data["quantity"], "total": line_total})
+        created_items.append({"product": product.name, "qty": qty, "total": line_total})
 
     order.total_amount = round(total, 2)
     db.commit()

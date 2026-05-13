@@ -28,7 +28,7 @@ def predict_demand(product_id: int, db: Session = Depends(get_db)):
     - 7-day daily forecast
     - Actionable insight text
     """
-    product = db.query(Product).get(product_id)
+    product = db.query(Product).filter(Product.id == product_id).first()
     if not product:
         return {"error": "Ürün bulunamadı."}
 

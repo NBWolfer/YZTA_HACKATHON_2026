@@ -90,6 +90,28 @@ export const importProductsCSV = async (file: File): Promise<{success: boolean, 
   return res.json();
 };
 
+export const updateStock = (productId: number, amount: number) =>
+  fetchAPI<{success: boolean, message: string, new_stock: number, status: string}>(`/api/inventory/${productId}/stock`, {
+    method: "PATCH",
+    body: JSON.stringify({ amount }),
+  });
+
+// ── Profile ──
+export const updateProfile = (userId: number, name: string) =>
+  fetchAPI<{ success: boolean; user: { id: number; name: string; email: string } }>("/api/profile/", {
+    method: "PUT",
+    body: JSON.stringify({ user_id: userId, name }),
+  });
+
+// ── WhatsApp Status ──
+export interface WhatsAppStatus {
+  status: "disconnected" | "qr_pending" | "connected";
+  qr: string | null;
+  info?: { phone?: string; platform?: string; pushname?: string };
+  error?: string;
+}
+export const getWhatsAppStatus = () => fetchAPI<WhatsAppStatus>("/api/whatsapp/status");
+
 // ── Orders ──
 export const getOrders = (status?: string) =>
   fetchAPI<OrderList>(`/api/orders/${status ? `?status=${status}` : ""}`);

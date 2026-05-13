@@ -101,6 +101,36 @@ def restock_product(
     }
 
 
+class UpdateStockRequest(BaseModel):
+    amount: int
+
+@router.patch("/{product_id}/stock")
+def update_stock(
+    product_id: int,
+    request: UpdateStockRequest,
+    db: Session = Depends(get_db)
+):
+    """Adjust stock quantity by a delta (positive or negative)."""
+    product = db.query(Product).filter(Product.id == product_id).first()
+    if not product:
+        raise HTTPException(status_code=404, detail="Ürün bulunamadı")
+
+    new_qty = product.stock_quantity + request.amount
+    if new_qty < 0:
+        raise HTTPException(status_code=400, detail="Stok miktarı negatif olamaz")
+
+    product.stock_quantity = new_qty
+    db.commit()
+    db.refresh(product)
+
+    return {
+        "success": True,
+        "message": f"{product.name} stok güncellendi: {product.stock_quantity} {product.stock_unit}",
+        "new_stock": product.stock_quantity,
+        "status": product.stock_status.value,
+    }
+
+
 class ProductCreate(BaseModel):
     name: str
     category: str

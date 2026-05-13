@@ -67,27 +67,34 @@ def get_all_products(db: Session) -> dict:
 
 def generate_reorder_suggestion(db: Session, product_id: int) -> dict:
     """Generate a reorder suggestion based on stock level and sales velocity."""
-    from app.models import OrderItem
+    from app.models import OrderItem, Order
     from datetime import datetime, timedelta
+    from sqlalchemy import func
 
-    product = db.query(Product).get(product_id)
+    product = db.query(Product).filter(Product.id == product_id).first()
     if not product:
         return {"error": "Ürün bulunamadı."}
 
     # Calculate 30-day sales velocity
     thirty_days_ago = datetime.utcnow() - timedelta(days=30)
-    items = db.query(OrderItem).filter(
+    sold_30d = db.query(func.coalesce(func.sum(OrderItem.quantity), 0)).join(
+        Order, OrderItem.order_id == Order.id
+    ).filter(
         OrderItem.product_id == product_id,
-        OrderItem.order.has(Order_created_at_gte=thirty_days_ago),
-    ).all()
+        Order.created_at >= thirty_days_ago,
+    ).scalar() or 0
 
-    # Fallback: simple count from order items
-    from sqlalchemy import func
-    total_sold = db.query(func.sum(OrderItem.quantity)).filter(
+    # Total sold (all time) as fallback
+    total_sold = db.query(func.coalesce(func.sum(OrderItem.quantity), 0)).filter(
         OrderItem.product_id == product_id
     ).scalar() or 0
 
-    daily_velocity = total_sold / 90  # Approximate from all data
+    # Prefer 30-day window; fall back to all-time / 90 days
+    if sold_30d > 0:
+        daily_velocity = sold_30d / 30
+    else:
+        daily_velocity = total_sold / 90
+
     suggested_qty = max(int(daily_velocity * 30), product.low_stock_threshold * 2)
 
     return {

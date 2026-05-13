@@ -1,4 +1,3 @@
-2026/05/13-00:09:30.388 483c Creating DB E:\YZTA-Hackathon\whatsapp-bot\.wwebjs_auth\session\Default\Site Characteristics Database since it was missing.
-2026/05/13-00:09:30.391 483c Reusing MANIFEST E:\YZTA-Hackathon\whatsapp-bot\.wwebjs_auth\session\Default\Site Characteristics Database/MANIFEST-000001
-2026/05/13-00:09:30.392 483c Recovering log #3
-2026/05/13-00:09:30.392 483c Reusing old log E:\YZTA-Hackathon\whatsapp-bot\.wwebjs_auth\session\Default\Site Characteristics Database/000003.log 
+2026/05/13-10:51:31.106 4530 Reusing MANIFEST E:\YZTA-Hackathon\whatsapp-bot\.wwebjs_auth\session\Default\Site Characteristics Database/MANIFEST-000001
+2026/05/13-10:51:31.108 4530 Recovering log #3
+2026/05/13-10:51:31.108 4530 Reusing old log E:\YZTA-Hackathon\whatsapp-bot\.wwebjs_auth\session\Default\Site Characteristics Database/000003.log 

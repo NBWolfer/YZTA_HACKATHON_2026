@@ -1,4 +1,3 @@
-2026/05/13-00:09:30.410 6078 Creating DB E:\YZTA-Hackathon\whatsapp-bot\.wwebjs_auth\session\Default\shared_proto_db since it was missing.
-2026/05/13-00:09:30.414 6078 Reusing MANIFEST E:\YZTA-Hackathon\whatsapp-bot\.wwebjs_auth\session\Default\shared_proto_db/MANIFEST-000001
-2026/05/13-00:09:30.415 6078 Recovering log #3
-2026/05/13-00:09:30.415 6078 Reusing old log E:\YZTA-Hackathon\whatsapp-bot\.wwebjs_auth\session\Default\shared_proto_db/000003.log 
+2026/05/13-10:51:31.252 1c68 Reusing MANIFEST E:\YZTA-Hackathon\whatsapp-bot\.wwebjs_auth\session\Default\shared_proto_db/MANIFEST-000001
+2026/05/13-10:51:31.253 1c68 Recovering log #3
+2026/05/13-10:51:31.253 1c68 Reusing old log E:\YZTA-Hackathon\whatsapp-bot\.wwebjs_auth\session\Default\shared_proto_db/000003.log 

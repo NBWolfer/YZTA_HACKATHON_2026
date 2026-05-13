@@ -1,10 +1,9 @@
 from fastapi import APIRouter, Depends
 from sqlalchemy.orm import Session
-from sqlalchemy import func
 from datetime import datetime, timedelta
 
 from app.database import get_db
-from app.models import Order, OrderStatus, Product, CargoTracking
+from app.models import Order, OrderStatus, Product
 
 router = APIRouter(prefix="/api/dashboard", tags=["dashboard"])
 

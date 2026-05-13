@@ -1,0 +1,9 @@
+{
+  "permissions": {
+    "allow": [
+      "Bash(npx next *)",
+      "PowerShell(python -c \"import py_compile; py_compile.compile\\(r'E:\\\\YZTA-Hackathon\\\\backend\\\\app\\\\routers\\\\chat.py', doraise=True\\); print\\('OK'\\)\")",
+      "mcp__Claude_in_Chrome__tabs_context_mcp"
+    ]
+  }
+}
