@@ -1,3 +1,6 @@
-2026/05/13-10:20:29.933 5fbc Reusing MANIFEST E:\YZTA-Hackathon\whatsapp-bot\.wwebjs_auth\session\Default\Local Storage\leveldb/MANIFEST-000001
-2026/05/13-10:20:29.946 5fbc Recovering log #7
-2026/05/13-10:20:29.948 5fbc Reusing old log E:\YZTA-Hackathon\whatsapp-bot\.wwebjs_auth\session\Default\Local Storage\leveldb/000007.log 
+2026/05/13-11:27:16.716 7918 Reusing MANIFEST E:\YZTA-Hackathon\whatsapp-bot\.wwebjs_auth\session\Default\Local Storage\leveldb/MANIFEST-000001
+2026/05/13-11:27:16.720 7918 Recovering log #7
+2026/05/13-11:27:16.722 7918 Reusing old log E:\YZTA-Hackathon\whatsapp-bot\.wwebjs_auth\session\Default\Local Storage\leveldb/000007.log 
+2026/05/13-11:45:36.491 7210 Level-0 table #11: started
+2026/05/13-11:45:36.502 7210 Level-0 table #11: 13312 bytes OK
+2026/05/13-11:45:36.505 7210 Delete type=0 #7

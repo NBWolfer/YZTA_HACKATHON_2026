@@ -1,4 +1,5 @@
 import re
+import logging
 from datetime import date
 
 from fastapi import APIRouter, Depends
@@ -8,6 +9,8 @@ from sqlalchemy.orm import Session
 from app.database import get_db
 from app.models import Customer
 from app.agents.orchestrator import chat
+
+logger = logging.getLogger(__name__)
 
 router = APIRouter(prefix="/api/chat", tags=["chat"])
 
@@ -65,30 +68,46 @@ async def whatsapp_webhook(request: WhatsAppRequest, db: Session = Depends(get_d
     sender_id = sender.split('@')[0].split('-')[0]
     sender_digits = re.sub(r'\D', '', sender_id)
 
-    # Verify if the number exists in the database
+    # Verify if the number or LID exists in the database
     all_customers = db.query(Customer).all()
-    number_exists = False
+    matched_customer = None
     for customer in all_customers:
         if customer.phone:
             db_digits = re.sub(r'\D', '', customer.phone)
-            # Compare the last 10 digits to avoid country code mismatches
-            if len(sender_digits) >= 10 and db_digits[-10:] == sender_digits[-10:]:
-                number_exists = True
+            # Exact match (handles WhatsApp LIDs stored directly in DB)
+            if db_digits == sender_digits:
+                matched_customer = customer
+                break
+            # Last-10-digits match (handles country code mismatches for real phone numbers)
+            if len(sender_digits) >= 10 and len(db_digits) >= 10 and db_digits[-10:] == sender_digits[-10:]:
+                matched_customer = customer
                 break
 
-    if not number_exists:
+    if not matched_customer:
         return {"reply": None, "ignored": True}
 
     today = date.today()
     last_date = whatsapp_conversation_dates.get(sender)
     if last_date != today:
-        whatsapp_conversations[sender] = []
+        # Inject customer context as the first message each day
+        whatsapp_conversations[sender] = [
+            {"role": "system", "content": f"Bu müşterinin adı: {matched_customer.name}, Şehir: {matched_customer.city or 'bilinmiyor'}, Müşteri ID: {matched_customer.id}"}
+        ]
         whatsapp_conversation_dates[sender] = today
 
     user_message = {"role": "user", "content": request.body}
     whatsapp_conversations[sender].append(user_message)
 
-    result = await chat(db, whatsapp_conversations[sender])
+    # Keep only the last 20 messages to avoid exceeding the model context window
+    if len(whatsapp_conversations[sender]) > 20:
+        whatsapp_conversations[sender] = whatsapp_conversations[sender][-20:]
+
+    try:
+        result = await chat(db, whatsapp_conversations[sender])
+    except Exception as e:
+        logger.error(f"WhatsApp AI error for {sender}: {e}")
+        whatsapp_conversations[sender].pop()
+        return {"reply": "Şu anda bir teknik sorun yaşıyoruz. Lütfen biraz sonra tekrar deneyin."}
 
     assistant_message = {"role": "assistant", "content": result["response"]}
     whatsapp_conversations[sender].append(assistant_message)

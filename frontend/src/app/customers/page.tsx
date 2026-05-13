@@ -1,6 +1,8 @@
 "use client";
 
 import { useState, useRef, useEffect } from "react";
+import ReactMarkdown from "react-markdown";
+import remarkGfm from "remark-gfm";
 import { sendChat, sendWhatsAppMessage, type ChatMessage, type ChatResponse } from "@/lib/api";
 import { useAppContext } from "@/lib/AppContext";
 
@@ -351,7 +353,13 @@ export default function CustomersPage() {
                     <span className="material-symbols-outlined text-[14px]">store</span>
                   </div>
                 )}
-                <p className="text-sm whitespace-pre-wrap">{m.content}</p>
+                {m.role === "assistant" ? (
+                  <div className="text-sm markdown-body [&_p]:my-1 [&_ul]:my-1.5 [&_ul]:pl-5 [&_ul]:list-disc [&_ol]:my-1.5 [&_ol]:pl-5 [&_ol]:list-decimal [&_li]:my-0.5 [&_strong]:font-semibold [&_h1]:text-base [&_h1]:font-bold [&_h1]:my-2 [&_h2]:text-sm [&_h2]:font-bold [&_h2]:my-2 [&_h3]:text-sm [&_h3]:font-semibold [&_h3]:my-1.5 [&_code]:bg-surface-container [&_code]:px-1 [&_code]:py-0.5 [&_code]:rounded [&_code]:text-xs [&_pre]:bg-surface-container [&_pre]:p-2 [&_pre]:rounded-lg [&_pre]:my-2 [&_pre]:overflow-x-auto [&_blockquote]:border-l-2 [&_blockquote]:border-outline-variant [&_blockquote]:pl-3 [&_blockquote]:my-2 [&_blockquote]:text-on-surface-variant [&_table]:w-full [&_table]:my-2 [&_table]:border-collapse [&_table]:text-xs [&_th]:bg-surface-container-low [&_th]:px-2 [&_th]:py-1.5 [&_th]:border [&_th]:border-outline-variant [&_th]:text-left [&_th]:font-semibold [&_td]:px-2 [&_td]:py-1.5 [&_td]:border [&_td]:border-outline-variant">
+                    <ReactMarkdown remarkPlugins={[remarkGfm]}>{m.content}</ReactMarkdown>
+                  </div>
+                ) : (
+                  <p className="text-sm whitespace-pre-wrap">{m.content}</p>
+                )}
               </div>
             </div>
           ))}

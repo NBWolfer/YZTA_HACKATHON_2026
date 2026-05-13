@@ -106,8 +106,24 @@ def seed_all(db):
         "Denizli", "Muğla", "Aydın", "Hatay",
     ]
 
-    customers = []
-    used_names = set()
+    # Turkify email helper
+    def _ascii(s: str) -> str:
+        for src, dst in [("ı", "i"), ("ö", "o"), ("ü", "u"), ("ş", "s"),
+                         ("ç", "c"), ("ğ", "g"), ("İ", "i")]:
+            s = s.replace(src, dst)
+        return s.lower()
+
+    # Demo customer linked to WhatsApp LID for live demo
+    demo_customer = Customer(
+        name="Enes Mahmut",
+        phone="167182256349303",
+        email="enes.mahmut@email.com",
+        city="İstanbul",
+    )
+    db.add(demo_customer)
+
+    customers = [demo_customer]
+    used_names = {"Enes Mahmut"}
     while len(customers) < 80:
         fn = random.choice(first_names)
         ln = random.choice(last_names)
@@ -115,13 +131,6 @@ def seed_all(db):
         if full in used_names:
             continue
         used_names.add(full)
-
-        # Turkify email
-        def _ascii(s: str) -> str:
-            for src, dst in [("ı", "i"), ("ö", "o"), ("ü", "u"), ("ş", "s"),
-                             ("ç", "c"), ("ğ", "g"), ("İ", "i")]:
-                s = s.replace(src, dst)
-            return s.lower()
 
         c = Customer(
             name=full,
@@ -257,6 +266,62 @@ def seed_all(db):
                 db.add(cargo)
 
             orders.append(order)
+
+    # ── Dedicated orders for demo customer (Enes Mahmut) ──
+    demo_orders_spec = [
+        # (days_ago, status, items: [(product_index, qty), ...])
+        (15, OrderStatus.TESLIM_EDILDI, [(0, 3), (5, 2)]),          # Lavanta Sabunu x3, Keçi Sütü Sabunu x2
+        (10, OrderStatus.TESLIM_EDILDI, [(1, 1), (4, 2)]),          # Zeytinyağı x1, Çiçek Balı x2
+        (5,  OrderStatus.IPTAL,         [(19, 1)]),                  # Antep Fıstığı x1 (cancelled)
+        (3,  OrderStatus.YOLDA,         [(15, 4), (30, 2)]),        # Nar Ekşisi x4, Pekmez x2
+        (1,  OrderStatus.KARGOYA_VERILDI, [(25, 5), (33, 3)]),     # Defne Sabunu x5, Gül Sabunu x3
+        (0,  OrderStatus.HAZIRLANIYOR,  [(23, 2), (48, 1), (6, 3)]), # Çam Balı x2, Pul Biber x1, Kurutulmuş Domates x3
+    ]
+
+    for days_ago, status, items_spec in demo_orders_spec:
+        order_date = (now - timedelta(days=days_ago)).replace(
+            hour=random.randint(9, 18), minute=random.randint(0, 59), second=0, microsecond=0
+        )
+        order = Order(
+            customer_id=demo_customer.id,
+            status=status,
+            created_at=order_date,
+            updated_at=order_date + timedelta(hours=random.randint(1, 24)),
+        )
+        db.add(order)
+        db.flush()
+
+        total = 0.0
+        for prod_idx, qty in items_spec:
+            prod = products[prod_idx]
+            item = OrderItem(
+                order_id=order.id,
+                product_id=prod.id,
+                quantity=qty,
+                unit_price=prod.unit_price,
+            )
+            db.add(item)
+            total += prod.unit_price * qty
+            total_stock_sold[prod.id] = total_stock_sold.get(prod.id, 0) + qty
+
+        order.total_amount = round(total, 2)
+
+        if status in (OrderStatus.KARGOYA_VERILDI, OrderStatus.YOLDA, OrderStatus.TESLIM_EDILDI):
+            cargo_status_map = {
+                OrderStatus.TESLIM_EDILDI: "Teslim Edildi",
+                OrderStatus.KARGOYA_VERILDI: "Transfer Merkezinde",
+                OrderStatus.YOLDA: "Kurye Dağıtımda",
+            }
+            cargo = CargoTracking(
+                order_id=order.id,
+                provider=random.choice(cargo_providers),
+                tracking_number=f"TR-{random.randint(100000000, 999999999)}",
+                status=cargo_status_map[status],
+                estimated_delivery=(order_date + timedelta(days=random.randint(2, 5))).strftime("%d/%m/%Y"),
+            )
+            db.add(cargo)
+
+        orders.append(order)
 
     # ── Adjust stock levels based on actual sales ──
     # Deduct sold quantities so stock reflects real sales history
